@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 )
 
 func echo(c *gosockjs.Conn) {
@@ -13,6 +14,8 @@ func echo(c *gosockjs.Conn) {
 }
 
 func closeSock(c *gosockjs.Conn) {
+	// Wait a bit to give tests time to catch up!
+	time.Sleep(time.Millisecond * 10)
 	c.Close()
 }
 
