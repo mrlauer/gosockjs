@@ -136,7 +136,7 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	// Websockets. We don't worry about sessions.
 	sub.HandleFunc("/websocket", r.WrapHandler(rawWebsocketHandler)).Methods("GET")
 	ss := sub.PathPrefix("/{serverid}/{sessionid}").Subrouter()
-	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler)).Methods("GET")
+	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler))
 
 	return r, nil
 }

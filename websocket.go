@@ -4,7 +4,9 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 )
 
 func errStatus(w http.ResponseWriter, s int) {
@@ -152,6 +154,30 @@ func (r *Router) makeWSHandler() websocket.Handler {
 func websocketHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 	if !r.WebsocketEnabled {
 		errStatus(w, http.StatusNotFound)
+		return
+	}
+	// Some checks
+	if req.Method != "GET" {
+		// This is gross. To avoid putting extra headers in, we'll hijack the connection!
+		rwc, buf, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			panic("Hijack failed: " + err.Error())
+		}
+		defer rwc.Close()
+		code := http.StatusMethodNotAllowed
+		fmt.Fprintf(buf, "HTTP/1.1 %d %s\r\n", code, http.StatusText(code))
+		fmt.Fprint(buf, "Content-Length: 0\r\n")
+		fmt.Fprint(buf, "Allow: GET\r\n")
+		fmt.Fprint(buf, "\r\n")
+		buf.Flush()
+		return
+	}
+	if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" {
+		http.Error(w, `Can "Upgrade" only to "WebSocket".`, http.StatusBadRequest)
+		return
+	}
+	if strings.ToLower(req.Header.Get("Connection")) != "upgrade" {
+		http.Error(w, `"Connection" must be "Upgrade".`, http.StatusBadRequest)
 		return
 	}
 	h := r.makeWSHandler()
