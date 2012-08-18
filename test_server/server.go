@@ -1,11 +1,11 @@
 package main
 
-import(
-	"net/http"
+import (
 	"fmt"
 	"github.com/mrlauer/gosockjs"
 	"io"
 	"log"
+	"net/http"
 )
 
 func echo(c *gosockjs.Conn) {

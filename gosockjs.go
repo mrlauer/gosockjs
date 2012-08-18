@@ -17,20 +17,14 @@ import (
 	"time"
 )
 
+// connImpl is the interface for implementations of Conn
+type connImpl interface {
+	io.ReadWriteCloser
+}
+
 // Conn is a SockJS connection. It is a ReadWriteCloser
 type Conn struct {
-}
-
-func (c *Conn) Read(p []byte) (n int, err error) {
-	return 0, io.EOF
-}
-
-func (c *Conn) Write(p []byte) (n int, err error) {
-	return 0, io.EOF
-}
-
-func (c *Conn) Close() error {
-	return nil
+	connImpl
 }
 
 // Handler is an interface to a SockJS connection.
@@ -91,10 +85,14 @@ func (r *Router) infoMethod(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func infoFunc(r *Router) func(w http.ResponseWriter, req *http.Request) {
+func (r *Router) WrapHandler(f func(r *Router, w http.ResponseWriter, req *http.Request)) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		r.infoMethod(w, req)
+		f(r, w, req)
 	}
+}
+
+func infoFunc(r *Router) func(w http.ResponseWriter, req *http.Request) {
+	return r.WrapHandler((*Router).infoMethod)
 }
 
 func NewRouter(baseUrl string, h Handler) (*Router, error) {
@@ -102,12 +100,18 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 
 	// Properties
 	r.WebsocketEnabled = true
+	r.handler = h
 
 	// Routing
 	r.r = mux.NewRouter()
 	sub := r.r.PathPrefix(baseUrl).Subrouter()
 	//	  ss := r.r.PathPrefix(baseUrl + "/{server}/{session}").Subrouter()
 	sub.HandleFunc("/info", infoFunc(r)).Methods("GET", "OPTIONS")
+
+	sub.HandleFunc("/websocket", r.WrapHandler(rawWebsocketHandler)).Methods("GET") //.Schemes("ws")
+	ss := sub.PathPrefix("/{serverid}/{sessionid}").Subrouter()
+	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler)).Methods("GET").Schemes("ws")
+
 	return r, nil
 }
 
