@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -30,12 +31,36 @@ type Conn struct {
 // Handler is an interface to a SockJS connection.
 type Handler func(*Conn)
 
+// Session.
+type Session struct {
+}
+
 // Router handles all the SockJS requests.
 type Router struct {
 	WebsocketEnabled bool
 	r                *mux.Router
 	handler          Handler
 	baseUrl          string
+
+	// Sessions
+	sessions    map[string]*Session
+	sessionLock sync.RWMutex
+}
+
+func (r *Router) GetSession(sessionId string) *Session {
+	r.sessionLock.RLock()
+	defer r.sessionLock.RUnlock()
+	return r.sessions[sessionId]
+}
+
+func (r *Router) GetOrAddSession(sessionId string) *Session {
+	s := r.GetSession(sessionId)
+	if s == nil {
+		r.sessionLock.Lock()
+		defer r.sessionLock.Unlock()
+		s = new(Session)
+	}
+	return s
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -108,9 +133,10 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	//	  ss := r.r.PathPrefix(baseUrl + "/{server}/{session}").Subrouter()
 	sub.HandleFunc("/info", infoFunc(r)).Methods("GET", "OPTIONS")
 
-	sub.HandleFunc("/websocket", r.WrapHandler(rawWebsocketHandler)).Methods("GET") //.Schemes("ws")
+	// Websockets. We don't worry about sessions.
+	sub.HandleFunc("/websocket", r.WrapHandler(rawWebsocketHandler)).Methods("GET")
 	ss := sub.PathPrefix("/{serverid}/{sessionid}").Subrouter()
-	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler)).Methods("GET").Schemes("ws")
+	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler)).Methods("GET")
 
 	return r, nil
 }
