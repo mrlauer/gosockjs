@@ -31,10 +31,6 @@ type Conn struct {
 // Handler is an interface to a SockJS connection.
 type Handler func(*Conn)
 
-// Session.
-type Session struct {
-}
-
 // Router handles all the SockJS requests.
 type Router struct {
 	WebsocketEnabled bool
@@ -43,22 +39,22 @@ type Router struct {
 	baseUrl          string
 
 	// Sessions
-	sessions    map[string]*Session
+	sessions    map[string]*session
 	sessionLock sync.RWMutex
 }
 
-func (r *Router) GetSession(sessionId string) *Session {
+func (r *Router) GetSession(sessionId string) *session {
 	r.sessionLock.RLock()
 	defer r.sessionLock.RUnlock()
 	return r.sessions[sessionId]
 }
 
-func (r *Router) GetOrAddSession(sessionId string) *Session {
+func (r *Router) GetOrAddSession(sessionId string) *session {
 	s := r.GetSession(sessionId)
 	if s == nil {
 		r.sessionLock.Lock()
 		defer r.sessionLock.Unlock()
-		s = new(Session)
+		s = new(session)
 	}
 	return s
 }
@@ -67,29 +63,50 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.r.ServeHTTP(w, req)
 }
 
+// Utility methods
+func writeNoCache(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+}
+
+func writeCacheAndExpires(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Cache-Control", "public, max-age=31536000")
+	exp := time.Now().Add(time.Hour * 24 * 365).UTC().Format(http.TimeFormat)
+	w.Header().Set("Expires", exp)
+}
+
+func writeOptionsAccess(w http.ResponseWriter, req *http.Request, methods ...string) {
+	w.Header().Set("Access-Control-Max-Age", "31536000")
+	m := "OPTIONS"
+	for _, method := range methods {
+		m = m + ", " + method
+	}
+	w.Header().Set("Access-Control-Allow-Methods", m)
+	origin := req.Header.Get("origin")
+	if origin == "" || origin == "null" {
+		origin = "*"
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+
+}
+
+func writeCorsHeaders(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+}
+
 func (r *Router) infoMethod(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("content-type", "application/json; charset=UTF-8")
 
 	// no caching
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	writeNoCache(w, req)
 
 	// cors
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	writeCorsHeaders(w, req)
 
 	// Response status
 	if req.Method == "OPTIONS" {
-		w.Header().Set("Cache-Control", "public, max-age=31536000")
-		w.Header().Set("Access-Control-Max-Age", "31536000")
-		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
-		exp := time.Now().Add(time.Hour * 24 * 365).UTC().Format(http.TimeFormat)
-		w.Header().Set("Expires", exp)
-
-		origin := req.Header.Get("origin")
-		if origin == "" || origin == "null" {
-			origin = "*"
-		}
-		w.Header().Set("Access-Control-Allow-Origin", origin)
+		writeCacheAndExpires(w, req)
+		writeOptionsAccess(w, req, "GET")
 
 		w.WriteHeader(204)
 		return
@@ -153,8 +170,8 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler))
 
 	// XHR
-	ss.HandleFunc("/xhr", r.WrapHandler(xhrHandler)).Methods("POST")
-	ss.HandleFunc("/xhr_send", r.WrapHandler(xhrSendHandler)).Methods("POST")
+	ss.HandleFunc("/xhr", r.WrapHandler(xhrHandler)).Methods("POST", "OPTIONS")
+	ss.HandleFunc("/xhr_send", r.WrapHandler(xhrSendHandler)).Methods("POST", "OPTIONS")
 
 	return r, nil
 }
