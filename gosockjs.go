@@ -120,6 +120,16 @@ func infoFunc(r *Router) func(w http.ResponseWriter, req *http.Request) {
 	return r.WrapHandler((*Router).infoMethod)
 }
 
+func greetingHandler(r *Router, w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-type", "text/plain; charset=UTF-8")
+	body := "Welcome to SockJS!\n"
+	w.Write([]byte(body))
+}
+
+func notFoundHandler(w http.ResponseWriter, req *http.Request) {
+	http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+}
+
 func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	r := new(Router)
 
@@ -129,14 +139,22 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 
 	// Routing
 	r.r = mux.NewRouter()
+	r.r.StrictSlash(true)
 	sub := r.r.PathPrefix(baseUrl).Subrouter()
-	//	  ss := r.r.PathPrefix(baseUrl + "/{server}/{session}").Subrouter()
+	sub.StrictSlash(true)
+	ss := sub.PathPrefix("/{serverid}/{sessionid}").Subrouter()
+
+	// Greeting, info
+	r.r.HandleFunc(baseUrl+"/", r.WrapHandler(greetingHandler)).Methods("GET")
 	sub.HandleFunc("/info", infoFunc(r)).Methods("GET", "OPTIONS")
 
 	// Websockets. We don't worry about sessions.
 	sub.HandleFunc("/websocket", r.WrapHandler(rawWebsocketHandler)).Methods("GET")
-	ss := sub.PathPrefix("/{serverid}/{sessionid}").Subrouter()
 	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler))
+
+	// XHR
+	ss.HandleFunc("/xhr", r.WrapHandler(xhrHandler)).Methods("POST")
+	ss.HandleFunc("/xhr_send", r.WrapHandler(xhrSendHandler)).Methods("POST")
 
 	return r, nil
 }
@@ -147,5 +165,6 @@ func Install(baseUrl string, h Handler) (*Router, error) {
 		return nil, err
 	}
 	http.Handle(baseUrl+"/", r)
+	http.HandleFunc(baseUrl, r.WrapHandler(greetingHandler))
 	return r, nil
 }

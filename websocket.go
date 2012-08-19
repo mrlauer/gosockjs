@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 func errStatus(w http.ResponseWriter, s int) {
@@ -49,9 +50,11 @@ func rawWebsocketHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 }
 
 type websocketConn struct {
-	ws     *websocket.Conn
-	buffer []string
-	unread string
+	ws        *websocket.Conn
+	buffer    []string
+	unread    string
+	readLock  sync.Mutex
+	writeLock sync.Mutex
 }
 
 func (c *websocketConn) readBufferedData(data []byte) (int, error) {
@@ -83,6 +86,8 @@ func (c *websocketConn) readBufferedData(data []byte) (int, error) {
 }
 
 func (c *websocketConn) Read(data []byte) (int, error) {
+	c.readLock.Lock()
+	defer c.readLock.Unlock()
 	n, err := c.readBufferedData(data)
 	if n > 0 {
 		return n, err
@@ -133,6 +138,8 @@ func (c *websocketConn) Write(data []byte) (int, error) {
 		return 0, err
 	}
 	toWrite := append([]byte("a"), json...)
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
 	return c.ws.Write(toWrite)
 }
 
