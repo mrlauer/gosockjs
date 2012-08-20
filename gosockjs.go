@@ -161,7 +161,7 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	r.r.StrictSlash(true)
 	sub := r.r.PathPrefix(baseUrl).Subrouter()
 	sub.StrictSlash(true)
-	ss := sub.PathPrefix("/{serverid}/{sessionid}").Subrouter()
+	ss := sub.PathPrefix("/{serverid:[^./]+}/{sessionid:[^./]+}").Subrouter()
 
 	// Greeting, info
 	r.r.HandleFunc(baseUrl+"/", r.WrapHandler(greetingHandler)).Methods("GET")

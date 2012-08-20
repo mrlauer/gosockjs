@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
+	"path"
 )
 
 func echo(c *gosockjs.Conn) {
@@ -21,8 +21,26 @@ type NoRedirectServer struct {
 	*http.ServeMux
 }
 
+// Stolen from http package
+func cleanPath(p string) string {
+	if p == "" {
+		return "/"
+	}
+	if p[0] != '/' {
+		p = "/" + p
+	}
+	np := path.Clean(p)
+	// path.Clean removes trailing slash except for root;
+	// put the trailing slash back if necessary.
+	if p[len(p)-1] == '/' && np != "/" {
+		np += "/"
+	}
+	return np
+}
+
 func (m *NoRedirectServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if strings.HasSuffix(req.URL.Path, "//") {
+	// To get the sockjs-protocol tests to work, barf if the path is not already clean.
+	if req.URL.Path != cleanPath(req.URL.Path) {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
