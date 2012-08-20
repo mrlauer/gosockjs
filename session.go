@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"regexp"
 	"sync"
 )
 
@@ -23,7 +25,17 @@ func (m message) String() string {
 }
 
 func (m message) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(m))
+	// Escape some characters
+	js, err := json.Marshal(string(m))
+	if err != nil {
+		return js, err
+	}
+	re := regexp.MustCompile("[\x00-\x1f\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufff0-\uffff]")
+	sesc := re.ReplaceAllFunc(js, func(s []byte) []byte {
+		return []byte(fmt.Sprintf(`\u%04x`, []rune(string(s))[0]))
+	})
+
+	return sesc, nil
 }
 
 // Session.
