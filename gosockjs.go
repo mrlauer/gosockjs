@@ -49,14 +49,15 @@ func (r *Router) GetSession(sessionId string) *session {
 	return r.sessions[sessionId]
 }
 
-func (r *Router) GetOrAddSession(sessionId string) *session {
-	s := r.GetSession(sessionId)
+func (r *Router) GetOrCreateSession(sessionId string) (s *session, isNew bool) {
+	r.sessionLock.Lock()
+	defer r.sessionLock.Unlock()
+	s = r.sessions[sessionId]
 	if s == nil {
-		r.sessionLock.Lock()
-		defer r.sessionLock.Unlock()
-		s = new(session)
+		s = newSession()
+		r.sessions[sessionId] = s
 	}
-	return s
+	return
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -153,6 +154,7 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	// Properties
 	r.WebsocketEnabled = true
 	r.handler = h
+	r.sessions = make(map[string]*session)
 
 	// Routing
 	r.r = mux.NewRouter()

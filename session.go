@@ -9,6 +9,9 @@ import (
 	"sync"
 )
 
+var JSONError error = errors.New("Broken JSON encoding.")
+var EmptyPayload error = errors.New("Payload expected.")
+
 type message []byte
 
 func (m message) bytes() []byte {
@@ -29,9 +32,15 @@ type session struct {
 	readQueue chan message
 	unread    []byte
 
-	trans     transport
-	readLock  sync.Mutex
-	writeLock sync.Mutex
+	// Writing
+	outbox []message
+
+	trans       transport
+	readLock    sync.Mutex
+	writeLock   sync.Mutex
+	sessionLock sync.Mutex
+
+	closed bool
 }
 
 // session is an io.ReadWriteCloser
@@ -69,10 +78,22 @@ func (s *session) Read(data []byte) (int, error) {
 }
 
 func (s *session) Write(data []byte) (int, error) {
-	return 0, nil
+	if s.closed {
+		return 0, io.EOF
+	}
+	err := s.fromServer(message(data))
+	if err != nil {
+		// Assume nothing was written
+		return 0, err
+	}
+	return len(data), nil
 }
 
 func (s *session) Close() error {
+	s.closed = true
+	// Tell any waiting receiver
+	s.trans.sendFrame(closeFrame(3000, "Go away!"))
+	s.trans.closeTransport()
 	return nil
 }
 
@@ -83,11 +104,36 @@ func newSession() *session {
 }
 
 // Reading
-func (s *session) fromTransport(m message) error {
-	select {
-	case s.readQueue <- m:
-	default:
-		return errors.New("Message queue full")
+func (s *session) fromClient(m message) error {
+	// A message is either a json-encoded string or
+	// an array of json-encoded strings.
+	b := []byte(m)
+	if len(b) == 0 {
+		// Do nothing.
+		return nil
+	}
+	var strings []string
+	// Hacky, but easy
+	if b[0] == '[' {
+		// An array
+		err := json.Unmarshal(b, &strings)
+		if err != nil {
+			return JSONError
+		}
+	} else {
+		var str string
+		err := json.Unmarshal(b, &str)
+		if err != nil {
+			return JSONError
+		}
+		strings = append(strings, str)
+	}
+	for _, str := range strings {
+		select {
+		case s.readQueue <- message(str):
+		default:
+			return errors.New("Message queue full")
+		}
 	}
 	return nil
 }
@@ -95,24 +141,48 @@ func (s *session) fromTransport(m message) error {
 // Writing
 func (s *session) fromServer(m message) error {
 	// Add to the queue.
+	s.writeLock.Lock()
+	s.outbox = append(s.outbox, m)
+	s.writeLock.Unlock()
+
 	// Try to send the queue.
+	s.tryToFlush()
+
+	// This never returns an error...
 	return nil
 }
 
-func (s *session) tryToFlush() {
+func (s *session) tryToFlush() error {
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+	if len(s.outbox) == 0 {
+		return nil
+	}
+	err := s.trans.sendFrame(messageFrame(s.outbox...))
+	if err != nil {
+		s.outbox = nil
+	}
+	return err
 }
 
 // Events from the transport.
 func (s *session) newReceiver() {
-	s.trans.sendFrame(openFrame())
+	if s.closed {
+		s.trans.sendFrame(closeFrame(3000, "Go away!"))
+		return
+	}
+	s.tryToFlush()
+	// Set up a timeout
 }
 
 func (s *session) disconnectReceiver() {
+	// Set up a timeout
 }
 
 // Transport. Where a session gets messages from and sends them to.
 type transport interface {
 	sendFrame(frame []byte) error
+	closeTransport()
 }
 
 // Frames.
