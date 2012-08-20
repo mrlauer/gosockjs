@@ -80,6 +80,9 @@ type xhrReceiver struct {
 }
 
 func (r *xhrReceiver) Write(data []byte) (int, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
 	n, err := r.w.Write(data)
 	if r.byteCount != nil && n > 0 {
 		r.byteCount <- n
@@ -88,7 +91,7 @@ func (r *xhrReceiver) Write(data []byte) (int, error) {
 }
 
 // The handlers
-func xhrHandler(r *Router, w http.ResponseWriter, req *http.Request) {
+func xhrHandlerBase(maxBytes int, prelude []byte, r *Router, w http.ResponseWriter, req *http.Request) {
 	if xhrProlog(w, req) {
 		return
 	}
@@ -104,21 +107,20 @@ func xhrHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 	s, _ := r.GetOrCreateSession(sessionId)
 	s.sessionLock.Lock()
 	defer s.sessionLock.Unlock()
-	if s.trans != nil {
-		trans, ok := s.trans.(*xhrTransport)
-		if !ok {
-			w.Write(closeFrame(1001, "Another kind of connection is using this session"))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+
+	doHijack := func(trans *xhrTransport) {
 		hijackAndContinue(w, func(w io.WriteCloser, done chan struct{}) {
-			byteCount := make(chan int, 1)
+			byteCount := make(chan int)
 			go func() {
+				nwritten := 0
 				for {
 					select {
-					case <-byteCount:
-						w.Close()
-						return
+					case nb := <-byteCount:
+						nwritten += nb
+						if nwritten >= maxBytes {
+							w.Close()
+							return
+						}
 					case <-done:
 						w.Close()
 						return
@@ -133,15 +135,30 @@ func xhrHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 			defer trans.clearReceiver()
 			<-done
 		})
+	}
+	if s.trans != nil {
+		trans, ok := s.trans.(*xhrTransport)
+		if !ok {
+			w.Write(closeFrame(1001, "Another kind of connection is using this session"))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		doHijack(trans)
 	} else {
 		trans := new(xhrTransport)
 		s.trans = trans
 		trans.s = s
+		if len(prelude) > 0 {
+			w.Write(prelude)
+		}
 		trans.setReceiver(&xhrReceiver{trans, w, nil})
 		trans.sendFrame(openFrame())
 		conn := &Conn{s}
 		trans.clearReceiver()
 		go r.handler(conn)
+		if prelude != nil {
+			doHijack(trans)
+		}
 	}
 }
 
@@ -174,5 +191,15 @@ func xhrSendHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func xhrStreamHandler(r *Router, w http.ResponseWriter, req *http.Request) {
+func xhrHandler(r *Router, w http.ResponseWriter, req *http.Request) {
+	xhrHandlerBase(1, nil, r, w, req)
+}
+
+func xhrStreamingHandler(r *Router, w http.ResponseWriter, req *http.Request) {
+	prelude := make([]byte, 2049)
+	for i, _ := range prelude {
+		prelude[i] = 'h'
+	}
+	prelude[2048] = '\n'
+	xhrHandlerBase(4096, prelude, r, w, req)
 }

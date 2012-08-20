@@ -173,6 +173,7 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 
 	// XHR
 	ss.HandleFunc("/xhr", r.WrapHandler(xhrHandler)).Methods("POST", "OPTIONS")
+	ss.HandleFunc("/xhr_streaming", r.WrapHandler(xhrStreamingHandler)).Methods("POST", "OPTIONS")
 	ss.HandleFunc("/xhr_send", r.WrapHandler(xhrSendHandler)).Methods("POST", "OPTIONS")
 
 	return r, nil
