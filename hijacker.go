@@ -72,6 +72,6 @@ func hijackAndContinue(w http.ResponseWriter, handler func(conn io.WriteCloser, 
 			}
 		}
 	}()
-	handler(&chunkedWriter{conn}, done)
+	go handler(&chunkedWriter{conn}, done)
 	return nil
 }

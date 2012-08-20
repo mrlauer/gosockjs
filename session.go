@@ -171,7 +171,7 @@ func (s *session) tryToFlush() error {
 		return nil
 	}
 	err := s.trans.sendFrame(messageFrame(s.outbox...))
-	if err != nil {
+	if err == nil {
 		s.outbox = nil
 	}
 	return err

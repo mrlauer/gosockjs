@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"code.google.com/p/gorilla/mux"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -49,7 +50,7 @@ func (t *xhrTransport) sendFrame(frame []byte) error {
 		_, err := t.receiver.Write(append(frame, '\n'))
 		return err
 	}
-	return nil
+	return errors.New("No receiver")
 }
 
 func (t *xhrTransport) closeTransport() {
@@ -58,7 +59,7 @@ func (t *xhrTransport) closeTransport() {
 func (t *xhrTransport) setReceiver(r *xhrReceiver) error {
 	if t.receiver != nil {
 		// Nyet.
-		r.Write(closeFrame(2010, "Another connection still open"))
+		fmt.Fprintf(r, "%s\n", closeFrame(2010, "Another connection still open"))
 		return errors.New("Another connection still open")
 	}
 	t.receiver = r
@@ -73,12 +74,17 @@ func (t *xhrTransport) clearReceiver() {
 }
 
 type xhrReceiver struct {
-	t *xhrTransport
-	w io.Writer
+	t         *xhrTransport
+	w         io.Writer
+	byteCount chan int
 }
 
 func (r *xhrReceiver) Write(data []byte) (int, error) {
-	return r.w.Write(data)
+	n, err := r.w.Write(data)
+	if r.byteCount != nil && n > 0 {
+		r.byteCount <- n
+	}
+	return n, err
 }
 
 // The handlers
@@ -104,13 +110,34 @@ func xhrHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 			w.Write(closeFrame(1001, "Another kind of connection is using this session"))
 			return
 		}
-		trans.setReceiver(&xhrReceiver{trans, w})
-		defer trans.clearReceiver()
+		w.WriteHeader(http.StatusOK)
+		hijackAndContinue(w, func(w io.WriteCloser, done chan struct{}) {
+			byteCount := make(chan int, 1)
+			go func() {
+				for {
+					select {
+					case <-byteCount:
+						w.Close()
+						return
+					case <-done:
+						w.Close()
+						return
+					}
+				}
+			}()
+			err := trans.setReceiver(&xhrReceiver{trans, w, byteCount})
+			if err != nil {
+				w.Close()
+				return
+			}
+			defer trans.clearReceiver()
+			<-done
+		})
 	} else {
 		trans := new(xhrTransport)
 		s.trans = trans
 		trans.s = s
-		trans.setReceiver(&xhrReceiver{trans, w})
+		trans.setReceiver(&xhrReceiver{trans, w, nil})
 		trans.sendFrame(openFrame())
 		conn := &Conn{s}
 		trans.clearReceiver()
