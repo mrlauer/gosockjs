@@ -179,6 +179,10 @@ func websocketHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 		buf.Flush()
 		return
 	}
+	// I think there is a bug in SockJS. Hybi v13 wants "Origin", not "Sec-WebSocket-Origin"
+	if req.Header.Get("Sec-WebSocket-Version") == "13" && req.Header.Get("Origin") == "" {
+		req.Header.Set("Origin", req.Header.Get("Sec-WebSocket-Origin"))
+	}
 	if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" {
 		http.Error(w, `Can "Upgrade" only to "WebSocket".`, http.StatusBadRequest)
 		return

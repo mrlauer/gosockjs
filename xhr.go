@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync"
 )
 
 type xhrConn struct {
@@ -42,6 +43,7 @@ func xhrProlog(w http.ResponseWriter, req *http.Request) bool {
 type xhrTransport struct {
 	receiver *xhrReceiver
 	s        *session
+	lock     sync.RWMutex
 }
 
 func (t *xhrTransport) writeFrame(w io.Writer, frame []byte) error {
@@ -50,6 +52,8 @@ func (t *xhrTransport) writeFrame(w io.Writer, frame []byte) error {
 }
 
 func (t *xhrTransport) sendFrame(frame []byte) error {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
 	if t.receiver != nil {
 		return t.writeFrame(t.receiver, frame)
 	}
@@ -57,25 +61,32 @@ func (t *xhrTransport) sendFrame(frame []byte) error {
 }
 
 func (t *xhrTransport) closeTransport() {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
 	if t.receiver != nil {
 		t.receiver.Close()
 	}
 }
 
 func (t *xhrTransport) setReceiver(r *xhrReceiver) error {
+	t.lock.Lock()
 	if t.receiver != nil {
+		defer t.lock.Unlock()
 		// Nyet.
 		t.writeFrame(r, closeFrame(2010, "Another connection still open"))
 		return errors.New("Another connection still open")
 	}
 	t.receiver = r
 	r.t = t
+	t.lock.Unlock()
 	t.s.newReceiver()
 	return nil
 }
 
 func (t *xhrTransport) clearReceiver() {
+	t.lock.Lock()
 	t.receiver = nil
+	defer t.lock.Unlock()
 	t.s.disconnectReceiver()
 }
 
