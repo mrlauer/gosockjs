@@ -60,6 +60,14 @@ func (r *Router) GetOrCreateSession(sessionId string) (s *session, isNew bool) {
 	return
 }
 
+func (r *Router) RemoveSession(sessionId string, s *session) {
+	r.sessionLock.RLock()
+	defer r.sessionLock.RUnlock()
+	if s == r.sessions[sessionId] {
+		delete(r.sessions, sessionId)
+	}
+}
+
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.r.ServeHTTP(w, req)
 }

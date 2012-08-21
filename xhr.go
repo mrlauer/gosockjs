@@ -158,13 +158,13 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		w.Header().Set("Access-Control-Allow-Headers", acrh)
 	}
 	sessionId := mux.Vars(req)["sessionid"]
-	// Find the session
 
 	w.WriteHeader(http.StatusOK)
 	opts.writePrelude(w)
 	hijackAndContinue(w, func(w io.WriteCloser, done chan struct{}) {
 		defer w.Close()
 		var trans *xhrTransport
+		// Find the session
 		s, _ := r.GetOrCreateSession(sessionId)
 		s.sessionLock.Lock()
 		// TODO: encapsulate this logic
@@ -199,6 +199,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		s.sessionLock.Unlock()
 		sessionUnlocked = true
 		byteCount := make(chan int)
+		var leavingVoluntarily bool
 		go func() {
 			nwritten := 0
 			for {
@@ -206,6 +207,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 				case nb := <-byteCount:
 					nwritten += nb
 					if nwritten >= opts.maxBytes() {
+						leavingVoluntarily = true
 						w.Close()
 						return
 					}
@@ -226,6 +228,13 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 			return
 		}
 		<-done
+		// If the session isn't closed, and we're not closing voluntarily, then
+		// assume the client closed us and close the session.
+		if !leavingVoluntarily && !s.closed {
+			trans.clearReceiver()
+			s.Close()
+			r.RemoveSession(sessionId, s)
+		}
 	})
 }
 
