@@ -102,6 +102,8 @@ func (s *session) Write(data []byte) (int, error) {
 }
 
 func (s *session) Close() error {
+	s.sessionLock.Lock()
+	defer s.sessionLock.Unlock()
 	s.closed = true
 	// Tell any waiting receiver
 	s.trans.sendFrame(closeFrame(3000, "Go away!"))
@@ -193,6 +195,7 @@ func (s *session) disconnectReceiver() {
 
 // Transport. Where a session gets messages from and sends them to.
 type transport interface {
+	writeFrame(w io.Writer, frame []byte) error
 	sendFrame(frame []byte) error
 	closeTransport()
 }
