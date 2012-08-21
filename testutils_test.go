@@ -1,7 +1,10 @@
 package gosockjs
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -142,5 +145,121 @@ func TestSniffingClient(t *testing.T) {
 	expected := strings.Join(expectedLines, "\r\n") + "\r\n\r\n"
 	if expected != string(buffer.Bytes()) {
 		t.Errorf("Got \n%s\n,not\n%s", buffer.Bytes(), expected)
+	}
+}
+
+// A reader for chunked transfer encoded bodies
+type chunkedReader struct {
+	r          io.Reader
+	readProlog bool
+	bufr       *bufio.Reader
+	unread     int
+}
+
+// A chunkedReader reads data in the chunked transfer-encoding format.
+// It attempts to read one chunk at a time. If data is not big enough for 
+// a chunk, the chunk will be split over successive reads. One read will
+// never return parts of two chunks.
+// This is NOT a bulletproof implemenatation. It just has to be good enough
+// for tests.
+func (cr *chunkedReader) Read(data []byte) (int, error) {
+	BadData := errors.New("Bad chunked transfer-encoding")
+	var a, b, c, d byte
+	for !cr.readProlog {
+		a, b, c = b, c, d
+		var err error
+		d, err = cr.bufr.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		if a == '\r' && b == '\n' && c == '\r' && d == '\n' {
+			cr.readProlog = true
+		}
+	}
+	if cr.unread != 0 {
+		readTo := data
+		if cr.unread < len(data) {
+			readTo = data[:cr.unread]
+		}
+		n, err := cr.bufr.Read(readTo)
+		if n < cr.unread {
+			cr.unread -= n
+		} else {
+			cr.unread = 0
+			if _, err := fmt.Fscanf(cr.bufr, "\r\n"); err != nil {
+				return n, BadData
+			}
+		}
+		return n, err
+	}
+	var sz int
+	_, err := fmt.Fscanf(cr.bufr, "%x\r\n", &sz)
+	if err != nil {
+		return 0, BadData
+	}
+	if sz == 0 {
+		return 0, io.EOF
+	}
+	readTo := data
+	if sz <= len(data) {
+		readTo = data[:sz]
+	}
+	n, err := cr.bufr.Read(readTo)
+	if n < sz {
+		cr.unread = sz - n
+		fmt.Printf("Read %d bytes: %s\n", n, data)
+		return n, err
+	} else {
+		if _, err := fmt.Fscanf(cr.bufr, "\r\n"); err != nil {
+			return n, BadData
+		}
+	}
+	return n, err
+}
+
+func newChunkedReader(r io.Reader) *chunkedReader {
+	cr := &chunkedReader{r: r, bufr: bufio.NewReader(r)}
+	return cr
+}
+
+type TestData struct {
+	dataSize int
+	results  []string
+}
+
+func TestChunkedReader(t *testing.T) {
+	data := "Foo:bar\r\n\r\n9\r\nSome data\r\ne\r\n0123456789abcd\r\n0\r\n\r\n"
+	testData := []TestData{
+		{
+			1024,
+			[]string{
+				"Some data",
+				"0123456789abcd",
+			},
+		},
+		{
+			5,
+			[]string{
+				"Some ",
+				"data",
+				"01234",
+				"56789",
+				"abcd",
+			},
+		},
+	}
+	for _, td := range testData {
+		b := make([]byte, td.dataSize)
+		cr := newChunkedReader(bytes.NewReader([]byte(data)))
+		for _, s := range td.results {
+			n, err := cr.Read(b)
+			if err != nil || string(b[:n]) != s {
+				t.Errorf("(%d) Read %s with error %v; should be %s\n", len(b), b[:n], err, s)
+			}
+		}
+		n, err := cr.Read(b)
+		if err != io.EOF {
+			t.Errorf("Read %s with error %v\n", b[:n], err)
+		}
 	}
 }
