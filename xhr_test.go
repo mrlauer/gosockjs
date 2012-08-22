@@ -1,10 +1,12 @@
 package gosockjs
 
 import (
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -13,6 +15,16 @@ func bodyString(r *http.Response) (string, error) {
 	b, err := ioutil.ReadAll(r.Body)
 	r.Body.Close()
 	return string(b), err
+}
+
+func bodyJSONMap(r *http.Response) (map[string]interface{}, error) {
+	dec := json.NewDecoder(r.Body)
+	var result map[string]interface{}
+	err := dec.Decode(&result)
+	if err != nil {
+		return make(map[string]interface{}), err
+	}
+	return result, nil
 }
 
 // Servers
@@ -33,7 +45,7 @@ func startEchoServer() (*httptest.Server, string) {
 	return server, server.URL + "/echo"
 }
 
-func TestInfo(t *testing.T) {
+func TestBaseUrl(t *testing.T) {
 	server, baseUrl := startEchoServer()
 	defer server.Close()
 
@@ -49,5 +61,33 @@ func TestInfo(t *testing.T) {
 	}
 	if b, _ := bodyString(r); b != "Welcome to SockJS!\n" {
 		t.Errorf("%s/ body is %s", baseUrl, b)
+	}
+}
+
+func TestInfo(t *testing.T) {
+	server, baseUrl := startEchoServer()
+	defer server.Close()
+
+	infoUrl := baseUrl + "/info"
+	r, err := http.Get(infoUrl)
+	if err != nil {
+		t.Errorf("Error %v getting %s", err, infoUrl)
+	}
+	if r.StatusCode != http.StatusOK {
+		t.Errorf("%s had status %v", infoUrl, r.StatusCode)
+	}
+	b, err := bodyJSONMap(r)
+	if err != nil {
+		t.Errorf("error %v getting body JSON", err)
+	}
+	if !reflect.DeepEqual(b["origins"], []interface{}{"*:*"}) {
+		t.Errorf("origins is %v (%T), not [\"*:*\"]", b["origins"], b["origins"])
+	}
+	entropyIntf := b["entropy"]
+	if entropyIntf == nil {
+		t.Errorf("no entropy")
+	}
+	if _, ok := entropyIntf.(float64); !ok {
+		t.Errorf("entropy is a %T, not a number", entropyIntf)
 	}
 }
