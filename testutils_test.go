@@ -207,7 +207,6 @@ func (cr *chunkedReader) Read(data []byte) (int, error) {
 	n, err := cr.bufr.Read(readTo)
 	if n < sz {
 		cr.unread = sz - n
-		fmt.Printf("Read %d bytes: %s\n", n, data)
 		return n, err
 	} else {
 		if _, err := fmt.Fscanf(cr.bufr, "\r\n"); err != nil {
@@ -260,6 +259,73 @@ func TestChunkedReader(t *testing.T) {
 		n, err := cr.Read(b)
 		if err != io.EOF {
 			t.Errorf("Read %s with error %v\n", b[:n], err)
+		}
+	}
+}
+
+// timeoutReader will return a Timeout error if a read takes too long.
+// After that happens, not much is really guaranteed.
+var Timeout = errors.New("Timeout")
+
+type timeoutReader struct {
+	r       io.Reader
+	timeout time.Duration
+}
+
+func newTimeoutReader(r io.Reader, timeout time.Duration) *timeoutReader {
+	tr := &timeoutReader{r, timeout}
+	return tr
+}
+
+func (tr *timeoutReader) Read(data []byte) (int, error) {
+	dataChan := make(chan bool)
+	var timer <-chan time.Time
+	buffer := make([]byte, len(data))
+	if tr.timeout > 0 {
+		timer = time.After(tr.timeout)
+	}
+	var n int
+	var err error
+	go func() {
+		n, err = tr.r.Read(buffer)
+		dataChan <- true
+	}()
+	select {
+	case <-dataChan:
+		copy(data, buffer)
+		return n, err
+	case <-timer:
+		return 0, Timeout
+	}
+	panic("unreachable")
+}
+
+func TestTimeoutReader(t *testing.T) {
+	r, w := io.Pipe()
+	delay1 := time.Microsecond * 500
+	delay2 := time.Microsecond * 750
+	delay3 := time.Millisecond
+	tr := newTimeoutReader(r, delay2)
+	delays := []time.Duration{0, delay1, delay3}
+	strings := []string{"foo", "bar", "baz"}
+	go func() {
+		for i, d := range delays {
+			time.Sleep(d)
+			io.WriteString(w, strings[i])
+		}
+	}()
+	data := make([]byte, 32)
+	for i, d := range delays {
+		n, err := tr.Read(data)
+		sread := string(data[:n])
+		if d > delay2 {
+			if err != Timeout {
+				t.Error("Read %d did not time out at %v\n", i, d)
+			}
+		} else {
+			if err != nil || sread != strings[i] {
+				t.Error("Read %d returned error %v and string %s", err, sread)
+			}
 		}
 	}
 }
