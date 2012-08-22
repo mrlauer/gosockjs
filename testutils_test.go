@@ -137,7 +137,7 @@ func TestSniffingClient(t *testing.T) {
 	}
 	go func() {
 		ioutil.ReadAll(resp.Body)
-		client.Conn.Close()
+		resp.Body.Close()
 	}()
 
 	buffer := bytes.NewBuffer(nil)
@@ -320,11 +320,11 @@ func TestTimeoutReader(t *testing.T) {
 		sread := string(data[:n])
 		if d > delay2 {
 			if err != Timeout {
-				t.Error("Read %d did not time out at %v\n", i, d)
+				t.Errorf("Read %d did not time out at %v", i, d)
 			}
 		} else {
 			if err != nil || sread != strings[i] {
-				t.Error("Read %d returned error %v and string %s", err, sread)
+				t.Errorf("Read %d returned error %v and string %s", i, err, sread)
 			}
 		}
 	}
