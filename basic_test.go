@@ -27,6 +27,12 @@ func bodyJSONMap(r *http.Response) (map[string]interface{}, error) {
 	return result, nil
 }
 
+func bodyJSON(r *http.Response, result interface{}) error {
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&result)
+	return err
+}
+
 // Servers
 func startTestServer(baseUrl string, h Handler) *httptest.Server {
 	r, err := NewRouter(baseUrl, h)
@@ -89,5 +95,30 @@ func TestInfo(t *testing.T) {
 	}
 	if _, ok := entropyIntf.(float64); !ok {
 		t.Errorf("entropy is a %T, not a number", entropyIntf)
+	}
+}
+
+func TestEntropy(t *testing.T) {
+	server, baseUrl := startEchoServer()
+	defer server.Close()
+
+	infoUrl := baseUrl + "/info"
+	entropies := make(map[int64]bool)
+	for i := 0; i < 5; i++ {
+		r, _ := http.Get(infoUrl)
+		var result struct{ Entropy int64 }
+		err := bodyJSON(r, &result)
+		if err != nil {
+			t.Errorf("Could not get body json for entropy")
+		}
+		entropy := result.Entropy
+		if entropy == 0 {
+			t.Errorf("0 entropy")
+		}
+		_, ok := entropies[entropy]
+		if ok {
+			t.Errorf("Entropy %v was repeated", entropy)
+		}
+		entropies[entropy] = true
 	}
 }
