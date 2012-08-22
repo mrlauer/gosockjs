@@ -175,6 +175,11 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	r.r.HandleFunc(baseUrl+"/", r.WrapHandler(greetingHandler)).Methods("GET")
 	sub.HandleFunc("/info", infoFunc(r)).Methods("GET", "OPTIONS")
 
+	// Iframe
+	sub.HandleFunc("/iframe.html", r.WrapHandler(iframeHandler)).Methods("GET")
+	sub.HandleFunc("/iframe-.html", r.WrapHandler(iframeHandler)).Methods("GET")
+	sub.HandleFunc("/iframe-{ver}.html", r.WrapHandler(iframeHandler)).Methods("GET")
+
 	// Websockets. We don't worry about sessions.
 	sub.HandleFunc("/websocket", r.WrapHandler(rawWebsocketHandler)).Methods("GET")
 	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler))
