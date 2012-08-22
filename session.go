@@ -14,7 +14,7 @@ import (
 var JSONError error = errors.New("Broken JSON encoding.")
 var EmptyPayload error = errors.New("Payload expected.")
 
-type message []byte
+type message string
 
 func (m message) bytes() []byte {
 	return ([]byte)(m)

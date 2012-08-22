@@ -83,6 +83,53 @@ func TestXhrPollingSimple(t *testing.T) {
 	}
 }
 
+func TestXhrPollingResponseLimit(t *testing.T) {
+	server, baseUrl := startEchoServer()
+	defer server.Close()
+
+	// Hack up server/session
+	turl := baseUrl + "/123/456"
+
+	c := newSniffingClient()
+	var r *http.Response
+	var err error
+	// Open a connection
+	r, err = c.Post(turl+"/xhr", "", nil)
+	if r.StatusCode != 200 {
+		t.Errorf("initial response was %v", r.StatusCode)
+	}
+	b, _ := bodyString(r)
+	if b != "o\n" {
+		t.Errorf(`initial response body was %q, not "o\n"`, b)
+	}
+
+	// Open a reading connection
+	r1, err := c.Post(turl+"/xhr", "", nil)
+	body := r1.Body
+
+	sendXhr(c, turl, "abc")
+	s, err := readString(body)
+	if err != nil || s != "a[\"abc\"]\n" {
+		t.Errorf("First read: %s (error %v)", s, err)
+	}
+	sendXhr(c, turl, "abc")
+	s, err = readString(body)
+	if err != io.EOF || s != "" {
+		t.Errorf("Second read: %s (error %v)", s, err)
+	}
+	body.Close()
+
+	sendXhr(c, turl, "def")
+	r1, err = c.Post(turl+"/xhr", "", nil)
+	body = r1.Body
+
+	sendXhr(c, turl, "ghi")
+	s, err = readString(body)
+	if err != nil || s != "a[\"abc\",\"def\"]\n" {
+		t.Errorf("With data waiting: First read: %s (error %v)", s, err)
+	}
+}
+
 func readString(r io.Reader) (string, error) {
 	buf := make([]byte, 1024)
 	n, err := r.Read(buf)
