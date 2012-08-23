@@ -24,6 +24,14 @@ func sendXhr(c Poster, url string, data ...interface{}) (*http.Response, error) 
 	return c.Post(url+"/xhr_send", "application/json", r)
 }
 
+func xhrMessage(s string) string {
+	jsbytes, err := message(s).MarshalJSON()
+	if err != nil {
+		return ""
+	}
+	return "a[" + string(jsbytes) + "]\n"
+}
+
 func TestXhrPollingSimple(t *testing.T) {
 	server, baseUrl := startEchoServer()
 	defer server.Close()
@@ -62,7 +70,7 @@ func TestXhrPollingSimple(t *testing.T) {
 
 	b, _ = bodyString(r)
 	if b != "a"+payload+"\n" {
-		t.Errorf(`Body was %q, not a%s\n`, payload)
+		t.Errorf(`Body was %q, not a%s\n`, b, payload)
 	}
 
 	r1, err := c.Post(turl+"/xhr", "", nil)
@@ -235,4 +243,56 @@ func TestXhrHeartbeat(t *testing.T) {
 	if nheartbeats != 3 {
 		t.Errorf("Got %d heartbeats, expecting 3", nheartbeats)
 	}
+}
+
+func TestXhrTimeout(t *testing.T) {
+	server, baseUrl := startEchoServer()
+	defer server.Close()
+	server.Router.DisconnectDelay = time.Millisecond * 3
+
+	// Hack up server/session
+	turl := baseUrl + "/123/456"
+	surl := turl + "/xhr"
+
+	c := newSniffingClient()
+	var r *http.Response
+	var err error
+	// Open a connection
+	r, err = c.Post(surl, "", nil)
+	if r.StatusCode != 200 {
+		t.Errorf("initial response was %v", r.StatusCode)
+	}
+	body := r.Body
+	// Read prelude
+	s, err := readString(body)
+	if err != nil || s != "o\n" {
+		t.Errorf("Initial response was %s with %v", s, err)
+	}
+
+	for i := 0; i < 4; i++ {
+		time.Sleep(time.Microsecond * 2000)
+		r, err = c.Post(surl, "", nil)
+		if err != nil {
+			t.Errorf("xhr error %v", err)
+			continue
+		}
+		if r.StatusCode != 200 {
+			t.Errorf("xhr message %d has status %d", i, r.StatusCode)
+		}
+		sendXhr(c, turl, "abc")
+		s, err = bodyString(r)
+		if err != nil || s != xhrMessage("abc") {
+			t.Errorf("xhr message %d was %s with error %v", i, s, err)
+		}
+	}
+
+	// Now sleep long enough to time out
+	time.Sleep(time.Microsecond * 3500)
+	r, err = c.Post(surl, "", nil)
+	sendXhr(c, turl, "abc")
+	s, err = readString(r.Body)
+	if err != nil || s != "o\n" {
+		t.Errorf("xhr message was %s with error %v; should have been o, after timeout", s, err)
+	}
+
 }

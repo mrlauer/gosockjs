@@ -57,8 +57,8 @@ func (r *Router) GetOrCreateSession(sessionId string) (s *session, isNew bool) {
 	defer r.sessionLock.Unlock()
 	s = r.sessions[sessionId]
 	if s == nil {
-		s = newSession()
-		s.router = r
+		s = newSession(r)
+		s.sessionId = sessionId
 		r.sessions[sessionId] = s
 	}
 	return

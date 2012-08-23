@@ -52,7 +52,7 @@ func rawWebsocketHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 // (Non-raw) websockets; with framing
 type wsTransport struct {
 	lock sync.RWMutex
-	ws *websocket.Conn
+	ws   *websocket.Conn
 }
 
 func (t *wsTransport) conn() *websocket.Conn {
@@ -90,9 +90,8 @@ func (t *wsTransport) closeTransport() {
 
 func (r *Router) makeWSHandler() websocket.Handler {
 	h := func(c *websocket.Conn) {
-		s := newSession()
-		s.router = r
-		trans := &wsTransport{ws:c}
+		s := newSession(r)
+		trans := &wsTransport{ws: c}
 		s.trans = trans
 		s.newReceiver()
 		s.trans.sendFrame(openFrame())

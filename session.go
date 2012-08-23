@@ -46,12 +46,14 @@ type session struct {
 	unread    []byte
 
 	// Heartbeat and disconnect timers
-	timer *time.Timer
+	timerLock sync.Mutex
+	timer     *time.Timer
 
 	// Writing
 	outbox []message
 
 	router      *Router
+	sessionId   string
 	trans       transport
 	readLock    sync.Mutex
 	writeLock   sync.Mutex
@@ -109,17 +111,20 @@ func (s *session) Write(data []byte) (int, error) {
 func (s *session) Close() error {
 	s.sessionLock.Lock()
 	defer s.sessionLock.Unlock()
-	s.closed = true
-	// Tell any waiting receiver
-	s.trans.sendFrame(closeFrame(3000, "Go away!"))
-	s.trans.closeTransport()
-	setTimer(s, nil)
+	if !s.closed {
+		s.closed = true
+		// Tell any waiting receiver
+		s.trans.sendFrame(closeFrame(3000, "Go away!"))
+		s.trans.closeTransport()
+		setTimer(s, nil)
+	}
 	return nil
 }
 
-func newSession() *session {
-	s := &session{}
+func newSession(r *Router) *session {
+	s := &session{router: r}
 	s.readQueue = make(chan message, 1024)
+	setDisconnect(s)
 	return s
 }
 
@@ -186,6 +191,8 @@ func (s *session) tryToFlush() error {
 }
 
 func setTimer(s *session, t *time.Timer) {
+	s.timerLock.Lock()
+	defer s.timerLock.Unlock()
 	if s.timer != nil {
 		s.timer.Stop()
 	}
@@ -201,6 +208,13 @@ func setHeartbeat(s *session) {
 	setTimer(s, time.AfterFunc(s.router.HeartbeatDelay, func() { heartbeatFunc(s) }))
 }
 
+func setDisconnect(s *session) {
+	setTimer(s, time.AfterFunc(s.router.DisconnectDelay, func() {
+		s.router.RemoveSession(s.sessionId, s)
+		s.Close()
+	}))
+}
+
 // Events from the transport.
 func (s *session) newReceiver() {
 	if s.closed {
@@ -214,7 +228,7 @@ func (s *session) newReceiver() {
 
 func (s *session) disconnectReceiver() {
 	// Set up a timeout
-	setTimer(s, nil)
+	setDisconnect(s)
 }
 
 // Transport. Where a session gets messages from and sends them to.
