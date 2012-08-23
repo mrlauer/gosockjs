@@ -15,10 +15,20 @@ import (
 	"runtime"
 )
 
-var StaticDir = "."
+var StaticDir string
+var TemplateDir string
+
+func init() {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		log.Fatal("Could not get file")
+	}
+	StaticDir = path.Join(path.Dir(file), "static")
+	TemplateDir = path.Join(path.Dir(file), "templates")
+}
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	t := template.Must(template.ParseFiles(path.Join(StaticDir, "client.html")))
+	t := template.Must(template.ParseFiles(path.Join(TemplateDir, "client.html")))
 	err := t.Execute(w, nil)
 	if err != nil {
 		log.Println(err)
@@ -28,7 +38,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 func staticHandler(w http.ResponseWriter, r *http.Request) {
 	filename := mux.Vars(r)["Filename"]
 	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeFile(w, r, path.Join(StaticDir, filename))
+	filepath := path.Join(StaticDir, filename)
+	http.ServeFile(w, r, filepath)
 }
 
 func echo(c *gosockjs.Conn) {
@@ -36,13 +47,8 @@ func echo(c *gosockjs.Conn) {
 }
 
 func main() {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		log.Fatal("Could not get file")
-	}
-	StaticDir = path.Dir(file)
 	r := mux.NewRouter()
-	r.HandleFunc("/static/{Filename}", staticHandler)
+	r.HandleFunc("/static/{Filename:.*}", staticHandler)
 	r.HandleFunc("/", handler)
 	http.Handle("/", r)
 	gosockjs.Install("/echo", echo)
