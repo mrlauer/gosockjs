@@ -5,6 +5,7 @@ package main
 
 import (
 	"code.google.com/p/gorilla/mux"
+	"flag"
 	"fmt"
 	"github.com/mrlauer/gosockjs"
 	"html/template"
@@ -47,11 +48,20 @@ func echo(c *gosockjs.Conn) {
 }
 
 func main() {
+	paddr := flag.String("port", ":8082", "Port to serve on")
+	flag.Parse()
 	r := mux.NewRouter()
 	r.HandleFunc("/static/{Filename:.*}", staticHandler)
 	r.HandleFunc("/", handler)
 	http.Handle("/", r)
-	gosockjs.Install("/echo", echo)
-	fmt.Printf("Listening on port :8082\n")
-	http.ListenAndServe(":8082", nil)
+	s, err := gosockjs.Install("/echo", echo)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = s
+	//	  s.WebsocketEnabled = false
+	fmt.Printf("Listening on port %s\n", *paddr)
+	if err := http.ListenAndServe(*paddr, nil); err != nil {
+		log.Fatal(err)
+	}
 }

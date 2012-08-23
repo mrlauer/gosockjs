@@ -1,13 +1,26 @@
 $(function() {
+    var output = function(msg) {
+        $("#output").append('<p>' + msg + '</p>')
+    };
+
+    $('#send').click(function() {
+        if(sock) {
+            sock.send("Boo!");
+        }
+    });
+
     var sock = new SockJS('/echo', null, {
-	options: ['xhr-polling']
+	protocols_whitelist: ['xhr-polling', 'xhr-streaming']
     });
     sock.onopen = function() {
-	console.log('open');
 	sock.send("Ohai!");
+	sock.send("Second send");
     };
+    sock.onclose = function(e) {
+        output("Byebye! " +  e.code + ', ' + e.reason)
+    }
     sock.onmessage = function(e) {
-	console.log('message', e.data);
+	output(e.data);
     };
 
 });
