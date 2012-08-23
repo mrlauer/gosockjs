@@ -2,9 +2,9 @@ package gosockjs
 
 import (
 	"code.google.com/p/go.net/websocket"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -49,111 +49,77 @@ func rawWebsocketHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 	h.ServeHTTP(w, req)
 }
 
-type websocketConn struct {
-	ws        *websocket.Conn
-	buffer    []string
-	unread    string
-	readLock  sync.Mutex
-	writeLock sync.Mutex
+// (Non-raw) websockets; with framing
+type wsTransport struct {
+	lock sync.RWMutex
+	ws *websocket.Conn
 }
 
-func (c *websocketConn) readBufferedData(data []byte) (int, error) {
-	n := len(data)
-	var tocopy string
-	if len(c.unread) > 0 {
-		tocopy = c.unread
-	} else {
-		for i, s := range c.buffer {
-			if len(s) > 0 {
-				tocopy = s
-				c.buffer = c.buffer[i+1:]
-				break
-			}
-		}
-	}
-	ntocopy := len(tocopy)
-	ncopied := 0
-	if ntocopy > 0 {
-		copy(data, tocopy)
-		if ntocopy > n {
-			c.unread = tocopy[n:]
-		} else {
-			ncopied = ntocopy
-			c.unread = ""
-		}
-	}
-	return ncopied, nil
+func (t *wsTransport) conn() *websocket.Conn {
+	t.lock.RLock()
+	defer t.lock.RUnlock()
+	return t.ws
 }
 
-func (c *websocketConn) Read(data []byte) (int, error) {
-	c.readLock.Lock()
-	defer c.readLock.Unlock()
-	n, err := c.readBufferedData(data)
-	if n > 0 {
-		return n, err
-	}
-	// We should get ONLY lists of strings in json form.
-	for {
-		var frames interface{}
-		var message string
-		err := websocket.Message.Receive(c.ws, &message)
-		if len(message) == 0 {
-			continue
-		}
-		err = json.Unmarshal([]byte(message), &frames)
-		if err != nil {
-			// Close immediately
-			c.ws.Close()
-			return 0, err
-		}
-		switch f := frames.(type) {
-		case string:
-			c.buffer = []string{f}
-		case []interface{}:
-			c.buffer = nil
-			for _, s := range f {
-				str, ok := s.(string)
-				if !ok {
-					c.ws.Close()
-					return 0, errors.New("Invalid message")
-				}
-				c.buffer = append(c.buffer, str)
-			}
-		default:
-			continue
-		}
-		n, err := c.readBufferedData(data)
-		if n > 0 {
-			return n, err
-		}
-	}
-	panic("unreachable")
+func (t *wsTransport) setConn(conn *websocket.Conn) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	t.ws = conn
 }
 
-func (c *websocketConn) Write(data []byte) (int, error) {
-	// TODO: abstract the frame away
-	toEncode := []string{string(data)}
-	json, err := json.Marshal(toEncode)
-	if err != nil {
-		return 0, err
-	}
-	toWrite := append([]byte("a"), json...)
-	c.writeLock.Lock()
-	defer c.writeLock.Unlock()
-	return c.ws.Write(toWrite)
+func (t *wsTransport) writeFrame(w io.Writer, frame []byte) error {
+	_, err := w.Write(frame)
+	return err
 }
 
-func (c *websocketConn) Close() error {
-	c.ws.Write([]byte(`c[3000,"Go away!"]`))
-	return c.ws.Close()
+func (t *wsTransport) sendFrame(frame []byte) error {
+	ws := t.conn()
+	if ws != nil {
+		return t.writeFrame(ws, frame)
+	}
+	return errors.New("No connection")
+}
+
+func (t *wsTransport) closeTransport() {
+	ws := t.conn()
+	if ws != nil {
+		ws.Close()
+		t.setConn(nil)
+	}
 }
 
 func (r *Router) makeWSHandler() websocket.Handler {
 	h := func(c *websocket.Conn) {
-		rcimpl := &websocketConn{ws: c}
-		conn := &Conn{rcimpl}
-		c.Write([]byte("o"))
+		s := newSession()
+		s.router = r
+		trans := &wsTransport{ws:c}
+		s.trans = trans
+		s.newReceiver()
+		s.trans.sendFrame(openFrame())
+		// Read from the websocket in a goroutine.
+		go func() {
+			for {
+				var m string
+				err := websocket.Message.Receive(c, &m)
+				if err == nil {
+					err = s.fromClient(message(m))
+				}
+				if err != nil {
+					trans.closeTransport()
+					s.Close()
+					return
+				}
+			}
+		}()
+		// And run the handler
+		conn := &Conn{s}
 		r.handler(conn)
+		/*
+			rcimpl := &websocketConn{ws: c}
+			conn := &Conn{rcimpl}
+			c.Write([]byte("o"))
+			r.handler(conn)
+		*/
 	}
 	return websocket.Handler(h)
 }

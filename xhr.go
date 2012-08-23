@@ -9,24 +9,6 @@ import (
 	"sync"
 )
 
-type xhrConn struct {
-	closed bool
-	inbox  []string
-	outbox []string
-}
-
-func (c *xhrConn) Read(data []byte) (int, error) {
-	return 0, nil
-}
-
-func (c *xhrConn) Write(data []byte) (int, error) {
-	return 0, nil
-}
-
-func (c *xhrConn) Close(data []byte) error {
-	return nil
-}
-
 func xhrProlog(w http.ResponseWriter, req *http.Request) bool {
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	if req.Method == "OPTIONS" {
