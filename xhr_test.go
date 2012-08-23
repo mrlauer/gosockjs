@@ -128,6 +128,18 @@ func TestXhrPollingResponseLimit(t *testing.T) {
 	if err != nil || s != "a[\"abc\",\"def\"]\n" {
 		t.Errorf("With data waiting: First read: %s (error %v)", s, err)
 	}
+	// Read ghi
+	r1, err = c.Post(turl+"/xhr", "", nil)
+	if s, err := readString(r1.Body); err != nil || s != "a[\"ghi\"]\n" {
+		t.Errorf("With data waiting: Second read: %s (error %v)", s, err)
+	}
+	r1, err = c.Post(turl+"/xhr", "", nil)
+	sendXhr(c, turl, "klm")
+	sendXhr(c, turl, "nop")
+	if s, err := readString(r1.Body); err != nil || s != "a[\"klm\"]\n" {
+		t.Errorf("With data waiting: Third read: %s (error %v)", s, err)
+	}
+
 }
 
 func readString(r io.Reader) (string, error) {
