@@ -34,9 +34,12 @@ type Handler func(*Conn)
 // Router handles all the SockJS requests.
 type Router struct {
 	WebsocketEnabled bool
-	r                *mux.Router
-	handler          Handler
-	baseUrl          string
+	DisconnectDelay  time.Duration
+	HeartbeatDelay   time.Duration
+
+	r       *mux.Router
+	handler Handler
+	baseUrl string
 
 	// Sessions
 	sessions    map[string]*session
@@ -55,6 +58,7 @@ func (r *Router) GetOrCreateSession(sessionId string) (s *session, isNew bool) {
 	s = r.sessions[sessionId]
 	if s == nil {
 		s = newSession()
+		s.router = r
 		r.sessions[sessionId] = s
 	}
 	return
@@ -161,6 +165,8 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 
 	// Properties
 	r.WebsocketEnabled = true
+	r.DisconnectDelay = time.Second * 5
+	r.HeartbeatDelay = time.Second * 25
 	r.handler = h
 	r.sessions = make(map[string]*session)
 

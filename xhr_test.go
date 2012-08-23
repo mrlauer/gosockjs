@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Things clients do
@@ -185,5 +186,53 @@ func TestXhrStreamingSimple(t *testing.T) {
 		if err != nil || s != expected {
 			t.Errorf("xhr_streaming got %s with error %v, expected %s", s, err, expected)
 		}
+	}
+}
+
+func TestXhrHeartbeat(t *testing.T) {
+	server, baseUrl := startEchoServer()
+	defer server.Close()
+	server.Router.HeartbeatDelay = time.Millisecond * 2
+
+	// Hack up server/session
+	turl := baseUrl + "/123/456"
+	surl := turl + "/xhr_streaming"
+
+	c := newSniffingClient()
+	var r *http.Response
+	var err error
+	// Open a connection
+	r, err = c.Post(surl, "", nil)
+	if r.StatusCode != 200 {
+		t.Errorf("initial response was %v", r.StatusCode)
+	}
+	body := r.Body
+	// Read prelude
+	prelude := make([]byte, 2049)
+	body.Read(prelude)
+	s, err := readString(body)
+	if err != nil || s != "o\n" {
+		t.Errorf("Initial response was %s with %v", s, err)
+	}
+
+	nheartbeats := 0
+	go func() {
+		buffer := make([]byte, 128)
+		for {
+			n, err := r.Body.Read(buffer)
+			if err != nil {
+				return
+			}
+			s := string(buffer[:n])
+			if s != "h\n" {
+				t.Errorf("Got %q, expecting heartbeat", s)
+			}
+			nheartbeats++
+		}
+	}()
+	time.Sleep(time.Millisecond * 7)
+	c.Conn.Close()
+	if nheartbeats != 3 {
+		t.Errorf("Got %d heartbeats, expecting 3", nheartbeats)
 	}
 }

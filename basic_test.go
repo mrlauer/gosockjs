@@ -33,17 +33,22 @@ func bodyJSON(r *http.Response, result interface{}) error {
 	return err
 }
 
+type ServerWithRouter struct {
+	*httptest.Server
+	Router *Router
+}
+
 // Servers
-func startTestServer(baseUrl string, h Handler) *httptest.Server {
+func startTestServer(baseUrl string, h Handler) ServerWithRouter {
 	r, err := NewRouter(baseUrl, h)
 	if err != nil {
 		panic(err)
 	}
 	server := httptest.NewServer(r)
-	return server
+	return ServerWithRouter{server, r}
 }
 
-func startEchoServer() (*httptest.Server, string) {
+func startEchoServer() (ServerWithRouter, string) {
 	echo := func(c *Conn) {
 		io.Copy(c, c)
 	}

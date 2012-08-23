@@ -9,6 +9,7 @@ import (
 	"log"
 	"regexp"
 	"sync"
+	"time"
 )
 
 var JSONError error = errors.New("Broken JSON encoding.")
@@ -44,9 +45,13 @@ type session struct {
 	readQueue chan message
 	unread    []byte
 
+	// Heartbeat and disconnect timers
+	timer *time.Timer
+
 	// Writing
 	outbox []message
 
+	router      *Router
 	trans       transport
 	readLock    sync.Mutex
 	writeLock   sync.Mutex
@@ -108,6 +113,7 @@ func (s *session) Close() error {
 	// Tell any waiting receiver
 	s.trans.sendFrame(closeFrame(3000, "Go away!"))
 	s.trans.closeTransport()
+	setTimer(s, nil)
 	return nil
 }
 
@@ -179,6 +185,22 @@ func (s *session) tryToFlush() error {
 	return err
 }
 
+func setTimer(s *session, t *time.Timer) {
+	if s.timer != nil {
+		s.timer.Stop()
+	}
+	s.timer = t
+}
+
+func heartbeatFunc(s *session) {
+	s.trans.sendFrame(heartbeatFrame())
+	setHeartbeat(s)
+}
+
+func setHeartbeat(s *session) {
+	setTimer(s, time.AfterFunc(s.router.HeartbeatDelay, func() { heartbeatFunc(s) }))
+}
+
 // Events from the transport.
 func (s *session) newReceiver() {
 	if s.closed {
@@ -187,10 +209,12 @@ func (s *session) newReceiver() {
 	}
 	s.tryToFlush()
 	// Set up a timeout
+	setHeartbeat(s)
 }
 
 func (s *session) disconnectReceiver() {
 	// Set up a timeout
+	setTimer(s, nil)
 }
 
 // Transport. Where a session gets messages from and sends them to.
