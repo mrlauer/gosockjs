@@ -5,11 +5,25 @@
         <title>SockJS Test Client</title>
         <script src="static/thirdparty/jquery-1.8.0.min.js"></script>
         <script src="static/thirdparty/sockjs-0.3.js"></script>
+        <script src="static/thirdparty/mustache.js"></script>
+        <script>
+            var protocols = {{ .Protocols }};
+        </script>
         <script src="static/client.js"></script>
     </head>
     <body>
         <div>
             <input type="Button" id="send" value="Push Me"></input>
+            <input type="Button" id="close" value="Close"></input>
+            <input type="Button" id="restart" value="Restart"></input>
+        </div>
+        <div id="Protocols">
+            {{ range .Protocols }}
+            <div>
+                <input type="checkbox" id="enable-{{ . }}"></input>
+                <label for="enable-{{ . }}">{{ . }}</label>
+            </div>
+            {{ end }}
         </div>
         <div id="output">
         </div>

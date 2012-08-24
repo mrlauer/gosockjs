@@ -29,8 +29,15 @@ func init() {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{
+		"Protocols": []string{
+			"websocket",
+			"xhr-polling",
+			"xhr-streaming",
+		},
+	}
 	t := template.Must(template.ParseFiles(path.Join(TemplateDir, "client.html")))
-	err := t.Execute(w, nil)
+	err := t.Execute(w, data)
 	if err != nil {
 		log.Println(err)
 	}
