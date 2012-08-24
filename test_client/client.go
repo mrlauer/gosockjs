@@ -34,6 +34,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			"websocket",
 			"xhr-polling",
 			"xhr-streaming",
+			"iframe-xhr-polling",
 		},
 	}
 	t := template.Must(template.ParseFiles(path.Join(TemplateDir, "client.html")))
