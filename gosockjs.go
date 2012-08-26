@@ -103,7 +103,11 @@ func writeOptionsAccess(w http.ResponseWriter, req *http.Request, methods ...str
 }
 
 func writeCorsHeaders(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	origin := req.Header.Get("Origin")
+	if origin == "" || origin == "null" {
+		origin = "*"
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 }
 
