@@ -80,15 +80,21 @@ type xhrReceiver struct {
 	t         *xhrTransport
 	w         io.WriteCloser
 	byteCount chan int
+	nwritten  int
+	opts      xhrOptions
 }
 
 func (r *xhrReceiver) Write(data []byte) (int, error) {
+	if r.nwritten >= r.opts.maxBytes() {
+		return 0, errors.New("Capacity exceeded")
+	}
 	if len(data) == 0 {
 		return 0, nil
 	}
 	n, err := r.w.Write(data)
 	if r.byteCount != nil && n > 0 {
 		r.byteCount <- n
+		r.nwritten += n
 	}
 	return n, err
 }
@@ -214,7 +220,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 				}
 			}
 		}()
-		err := trans.setReceiver(&xhrReceiver{trans, w, byteCount})
+		err := trans.setReceiver(&xhrReceiver{trans, w, byteCount, 0, opts})
 		if err != nil {
 			return
 		}

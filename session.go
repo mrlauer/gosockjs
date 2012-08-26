@@ -97,6 +97,8 @@ func (s *session) Read(data []byte) (int, error) {
 }
 
 func (s *session) Write(data []byte) (int, error) {
+	s.sessionLock.Lock()
+	defer s.sessionLock.Unlock()
 	if s.closed {
 		return 0, io.EOF
 	}
