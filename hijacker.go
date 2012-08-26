@@ -5,16 +5,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 )
 
 // Hijack an http connection to keep it open til the client closes it.
 
 // ChunkedWriter writes in the format acceptable for chunked transfer encoding.
 type chunkedWriter struct {
-	w io.Writer
+	w      io.Writer
+	closed bool
+	lock   sync.Mutex
 }
 
 func (w *chunkedWriter) Write(data []byte) (int, error) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.closed {
+		return 0, errors.New("write to closed writer")
+	}
 	n := len(data)
 	nwritten, err := fmt.Fprintf(w.w, "%x\r\n%s\r\n", n, data)
 	if err != nil {
@@ -33,7 +41,12 @@ func (w *chunkedWriter) Write(data []byte) (int, error) {
 
 // Write the last chunk
 func (w *chunkedWriter) end() {
-	// And a trailer
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.closed {
+		return
+	}
+	w.closed = true
 	fmt.Fprint(w.w, "0\r\n\r\n")
 }
 
@@ -72,6 +85,6 @@ func hijackAndContinue(w http.ResponseWriter, handler func(conn io.WriteCloser, 
 			}
 		}
 	}()
-	go handler(&chunkedWriter{conn}, done)
+	go handler(&chunkedWriter{w: conn}, done)
 	return nil
 }

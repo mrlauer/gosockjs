@@ -18,7 +18,7 @@ func TestChunkedWriter(t *testing.T) {
 	expected := "5\r\nOhai!\r\ne\r\nThis is\na test\r\n8\r\nFoo\"bar\"\r\n0\r\n\r\n"
 
 	buf := bytes.NewBuffer(nil)
-	w := &chunkedWriter{buf}
+	w := &chunkedWriter{w: buf}
 	for _, s := range toWrite {
 		io.WriteString(w, s)
 	}
