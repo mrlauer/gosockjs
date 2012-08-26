@@ -56,6 +56,24 @@ func startEchoServer() (ServerWithRouter, string) {
 	return server, server.URL + "/echo"
 }
 
+func startEchoTwiceServer() (ServerWithRouter, string) {
+	twice := func(c *Conn) {
+		buffer := make([]byte, 4096)
+		for {
+			n, err := c.Read(buffer)
+			if n > 0 {
+				c.Write(buffer[:n])
+				c.Write(buffer[:n])
+			}
+			if err != nil {
+				return
+			}
+		}
+	}
+	server := startTestServer("/twice", twice)
+	return server, server.URL + "/twice"
+}
+
 func TestBaseUrl(t *testing.T) {
 	server, baseUrl := startEchoServer()
 	defer server.Close()

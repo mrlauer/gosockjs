@@ -151,6 +151,49 @@ func TestXhrPollingResponseLimit(t *testing.T) {
 
 }
 
+func TestXhrPollingMultiMessage(t *testing.T) {
+	server, baseUrl := startEchoTwiceServer()
+	defer server.Close()
+
+	// Hack up server/session
+	turl := baseUrl + "/123/456"
+
+	c := newSniffingClient()
+	var r *http.Response
+	var err error
+	// Open a connection
+	r, err = c.Post(turl+"/xhr", "", nil)
+	if r.StatusCode != 200 {
+		t.Errorf("initial response was %v", r.StatusCode)
+	}
+	b, _ := bodyString(r)
+	if b != "o\n" {
+		t.Errorf(`initial response body was %q, not "o\n"`, b)
+	}
+
+	// Open a reading connection
+	r1, err := c.Post(turl+"/xhr", "", nil)
+	body := r1.Body
+
+	sendXhr(c, turl, "abc")
+	s, err := readString(body)
+	if err != nil || s != "a[\"abc\"]\n" {
+		// If this fails, the next read will probably hang, so use Fatalf
+		t.Fatalf("First read: %s (error %v)", s, err)
+	}
+	s, err = readString(body)
+	if err != io.EOF {
+		t.Fatalf("Read too much from xhr poll: %s with error %v", s, err)
+	}
+	r1, err = c.Post(turl+"/xhr", "", nil)
+	body = r1.Body
+
+	s, err = readString(body)
+	if err != nil || s != "a[\"abc\"]\n" {
+		t.Errorf("Second read: %s (error %v)", s, err)
+	}
+}
+
 func readString(r io.Reader) (string, error) {
 	buf := make([]byte, 1024)
 	n, err := r.Read(buf)
