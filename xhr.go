@@ -203,7 +203,9 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		sessionUnlocked = true
 		byteCount := make(chan int)
 		var leavingVoluntarily bool
+		loopDone := make(chan bool)
 		go func() {
+			defer close(loopDone)
 			nwritten := 0
 			for {
 				select {
@@ -230,7 +232,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		if s.closed {
 			return
 		}
-		<-done
+		<-loopDone
 		// If the session isn't closed, and we're not closing voluntarily, then
 		// assume the client closed us and close the session.
 		if !leavingVoluntarily && !s.closed {
