@@ -196,6 +196,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 			conn := &Conn{s}
 			go r.handler(conn)
 			if !opts.streaming() {
+				w.Close()
 				return
 			}
 		}

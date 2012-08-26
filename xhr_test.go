@@ -39,7 +39,6 @@ func TestXhrPollingSimple(t *testing.T) {
 	// Hack up server/session
 	turl := baseUrl + "/123/456"
 
-	http.DefaultTransport = &http.Transport{DisableKeepAlives: true}
 	c := newSniffingClient()
 	var r *http.Response
 	var err error

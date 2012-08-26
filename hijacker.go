@@ -12,7 +12,7 @@ import (
 
 // ChunkedWriter writes in the format acceptable for chunked transfer encoding.
 type chunkedWriter struct {
-	w      io.Writer
+	w	   io.Writer
 	closed bool
 	lock   sync.Mutex
 }
@@ -24,6 +24,9 @@ func (w *chunkedWriter) Write(data []byte) (int, error) {
 		return 0, errors.New("write to closed writer")
 	}
 	n := len(data)
+	if n == 0 {
+		return 0, nil
+	}
 	nwritten, err := fmt.Fprintf(w.w, "%x\r\n%s\r\n", n, data)
 	if err != nil {
 		// A reasonable guess as to how much was written
