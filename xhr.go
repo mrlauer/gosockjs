@@ -11,6 +11,10 @@ import (
 
 func xhrProlog(w http.ResponseWriter, req *http.Request) bool {
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	h := req.Header.Get("Access-Control-Request-Headers")
+	if h != "" {
+		w.Header().Set("Access-Control-Allow-Headers", h)
+	}
 	if req.Method == "OPTIONS" {
 		writeCacheAndExpires(w, req)
 		writeOptionsAccess(w, req, "POST")
