@@ -46,13 +46,13 @@ type Router struct {
 	sessionLock sync.RWMutex
 }
 
-func (r *Router) GetSession(sessionId string) *session {
+func (r *Router) getSession(sessionId string) *session {
 	r.sessionLock.RLock()
 	defer r.sessionLock.RUnlock()
 	return r.sessions[sessionId]
 }
 
-func (r *Router) GetOrCreateSession(sessionId string) (s *session, isNew bool) {
+func (r *Router) getOrCreateSession(sessionId string) (s *session, isNew bool) {
 	r.sessionLock.Lock()
 	defer r.sessionLock.Unlock()
 	s = r.sessions[sessionId]
@@ -64,7 +64,7 @@ func (r *Router) GetOrCreateSession(sessionId string) (s *session, isNew bool) {
 	return
 }
 
-func (r *Router) RemoveSession(sessionId string, s *session) {
+func (r *Router) removeSession(sessionId string, s *session) {
 	r.sessionLock.RLock()
 	defer r.sessionLock.RUnlock()
 	if s == r.sessions[sessionId] {
@@ -144,14 +144,14 @@ func (r *Router) infoMethod(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (r *Router) WrapHandler(f func(r *Router, w http.ResponseWriter, req *http.Request)) func(w http.ResponseWriter, req *http.Request) {
+func (r *Router) wrapHandler(f func(r *Router, w http.ResponseWriter, req *http.Request)) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		f(r, w, req)
 	}
 }
 
 func infoFunc(r *Router) func(w http.ResponseWriter, req *http.Request) {
-	return r.WrapHandler((*Router).infoMethod)
+	return r.wrapHandler((*Router).infoMethod)
 }
 
 func greetingHandler(r *Router, w http.ResponseWriter, req *http.Request) {
@@ -164,6 +164,8 @@ func notFoundHandler(w http.ResponseWriter, req *http.Request) {
 	http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 }
 
+// NewRouter returns a new gosockjs router listening at baseUrl. baseUrl should
+// be an absolute path.
 func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	r := new(Router)
 
@@ -182,32 +184,34 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	ss := sub.PathPrefix("/{serverid:[^./]+}/{sessionid:[^./]+}").Subrouter()
 
 	// Greeting, info
-	r.r.HandleFunc(baseUrl+"/", r.WrapHandler(greetingHandler)).Methods("GET")
+	r.r.HandleFunc(baseUrl+"/", r.wrapHandler(greetingHandler)).Methods("GET")
 	sub.HandleFunc("/info", infoFunc(r)).Methods("GET", "OPTIONS")
 
 	// Iframe
-	sub.HandleFunc("/iframe.html", r.WrapHandler(iframeHandler)).Methods("GET")
-	sub.HandleFunc("/iframe-.html", r.WrapHandler(iframeHandler)).Methods("GET")
-	sub.HandleFunc("/iframe-{ver}.html", r.WrapHandler(iframeHandler)).Methods("GET")
+	sub.HandleFunc("/iframe.html", r.wrapHandler(iframeHandler)).Methods("GET")
+	sub.HandleFunc("/iframe-.html", r.wrapHandler(iframeHandler)).Methods("GET")
+	sub.HandleFunc("/iframe-{ver}.html", r.wrapHandler(iframeHandler)).Methods("GET")
 
 	// Websockets. We don't worry about sessions.
-	sub.HandleFunc("/websocket", r.WrapHandler(rawWebsocketHandler)).Methods("GET")
-	ss.HandleFunc("/websocket", r.WrapHandler(websocketHandler))
+	sub.HandleFunc("/websocket", r.wrapHandler(rawWebsocketHandler)).Methods("GET")
+	ss.HandleFunc("/websocket", r.wrapHandler(websocketHandler))
 
 	// XHR
-	ss.HandleFunc("/xhr", r.WrapHandler(xhrHandler)).Methods("POST", "OPTIONS")
-	ss.HandleFunc("/xhr_streaming", r.WrapHandler(xhrStreamingHandler)).Methods("POST", "OPTIONS")
-	ss.HandleFunc("/xhr_send", r.WrapHandler(xhrSendHandler)).Methods("POST", "OPTIONS")
+	ss.HandleFunc("/xhr", r.wrapHandler(xhrHandler)).Methods("POST", "OPTIONS")
+	ss.HandleFunc("/xhr_streaming", r.wrapHandler(xhrStreamingHandler)).Methods("POST", "OPTIONS")
+	ss.HandleFunc("/xhr_send", r.wrapHandler(xhrSendHandler)).Methods("POST", "OPTIONS")
 
 	return r, nil
 }
 
+// Install creates and installs a Router into the default http ServeMux. baseUrl should
+// be an absolute path.
 func Install(baseUrl string, h Handler) (*Router, error) {
 	r, err := NewRouter(baseUrl, h)
 	if err != nil {
 		return nil, err
 	}
 	http.Handle(baseUrl+"/", r)
-	http.HandleFunc(baseUrl, r.WrapHandler(greetingHandler))
+	http.HandleFunc(baseUrl, r.wrapHandler(greetingHandler))
 	return r, nil
 }

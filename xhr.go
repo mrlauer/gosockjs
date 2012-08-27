@@ -168,7 +168,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		defer w.Close()
 		var trans *xhrTransport
 		// Find the session
-		s, _ := r.GetOrCreateSession(sessionId)
+		s, _ := r.getOrCreateSession(sessionId)
 		s.sessionLock.Lock()
 		// TODO: encapsulate this logic
 		var sessionUnlocked bool
@@ -239,7 +239,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		if !leavingVoluntarily && !s.closed {
 			trans.clearReceiver()
 			s.Close()
-			r.RemoveSession(sessionId, s)
+			r.removeSession(sessionId, s)
 		}
 	})
 }
@@ -251,7 +251,7 @@ func xhrSendHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-type", "text/plain; charset=UTF-8")
 	sessionId := mux.Vars(req)["sessionid"]
 	// Find the session
-	s := r.GetSession(sessionId)
+	s := r.getSession(sessionId)
 	if s == nil {
 		http.NotFoundHandler().ServeHTTP(w, req)
 		return

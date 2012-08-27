@@ -12,7 +12,7 @@ import (
 
 // ChunkedWriter writes in the format acceptable for chunked transfer encoding.
 type chunkedWriter struct {
-	w	   io.Writer
+	w      io.Writer
 	closed bool
 	lock   sync.Mutex
 }

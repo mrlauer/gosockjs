@@ -212,7 +212,7 @@ func setHeartbeat(s *session) {
 
 func setDisconnect(s *session) {
 	setTimer(s, time.AfterFunc(s.router.DisconnectDelay, func() {
-		s.router.RemoveSession(s.sessionId, s)
+		s.router.removeSession(s.sessionId, s)
 		s.Close()
 	}))
 }
