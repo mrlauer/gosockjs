@@ -12,6 +12,5 @@ There is a test server in test_server that can be used with the sockjs-protocol 
 
 Some obvious TODOs:
 * Other protocols, maybe.
-* Cookies.
-* Bulletproof parallelism issues.
+* Bulletproof thread issues.
 * Real testing. There are some tests here, but not nearly enough. The sockjs-protocol tests are not at all thorough.

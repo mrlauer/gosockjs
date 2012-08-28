@@ -54,6 +54,11 @@ func main() {
 		log.Println(err)
 	}
 	dwe.WebsocketEnabled = false
+	cne, err := gosockjs.Install("/cookie_needed_echo", echo)
+	if err != nil {
+		log.Println(err)
+	}
+	cne.CookieNeeded = true
 	gosockjs.Install("/close", closeSock)
 	fmt.Println("Listening on port 8081")
 	http.ListenAndServe(":8081", new(NoRedirectServer))

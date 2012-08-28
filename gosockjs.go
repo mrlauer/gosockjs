@@ -2,6 +2,20 @@
 Package gosockjs is an implementation of a SockJS server.
 
 See https://github.com/sockjs .
+
+SockJS is intended to be used much like websockets, and gosockjs attempts to mirror
+the websocket interface, with the complication that the infrastructure needs to know
+the base url in order to set up all the routing. A simple gosockjs server looks like
+
+	func echo(c *gosockjs.Conn) {
+		io.Copy(c, c)
+	}
+
+	func main() {
+		gosockjs.Install("/echo", echo)
+		http.ListenAndServe(":8081", nil)
+	}
+
 */
 package gosockjs
 
@@ -34,6 +48,7 @@ type Handler func(*Conn)
 // Router handles all the SockJS requests.
 type Router struct {
 	WebsocketEnabled bool
+	CookieNeeded     bool
 	DisconnectDelay  time.Duration
 	HeartbeatDelay   time.Duration
 
@@ -138,6 +153,10 @@ func (r *Router) infoMethod(w http.ResponseWriter, req *http.Request) {
 	var uent uint32
 	binary.Read(bytes.NewReader(entropy), binary.LittleEndian, &uent)
 	data["entropy"] = uent
+	if r.CookieNeeded {
+		data["cookie_needed"] = true
+	}
+
 	err := json.NewEncoder(w).Encode(data)
 	if err != nil {
 		log.Print(err)

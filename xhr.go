@@ -162,11 +162,31 @@ func (o xhrStreamingOptions) streaming() bool {
 	return true
 }
 
+func xhrJsessionid(r *Router, w http.ResponseWriter, req *http.Request) {
+	c, err := req.Cookie("JSESSIONID")
+	if err == nil && c != nil {
+		if len(c.Path) == 0 {
+			c.Path = "/"
+		}
+		http.SetCookie(w, c)
+	} else if r.CookieNeeded {
+		c := &http.Cookie{
+			Name:  "JSESSIONID",
+			Value: "dummy",
+			Path:  "/",
+		}
+		http.SetCookie(w, c)
+	}
+}
+
+// BUG(mrlauer): xhr connections cannot be reused.
+
 // The handlers
 func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http.Request) {
 	if xhrProlog(w, req) {
 		return
 	}
+	xhrJsessionid(r, w, req)
 	w.Header().Set("Content-type", "application/javascript; charset=UTF-8")
 	// For CORS, if the server sent Access-Control-Request-Headers, we
 	// echo it back.
