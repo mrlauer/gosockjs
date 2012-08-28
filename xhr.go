@@ -77,30 +77,44 @@ func (t *xhrTransport) clearReceiver() {
 }
 
 type xhrReceiver struct {
-	t         *xhrTransport
-	w         io.WriteCloser
-	byteCount chan int
-	nwritten  int
-	opts      xhrOptions
+	t        *xhrTransport
+	w        io.WriteCloser
+	opts     xhrOptions
+	closed   chan bool // When closed the receiver closes this channel.
+	nwritten int
+	lock     sync.Mutex
 }
 
 func (r *xhrReceiver) Write(data []byte) (int, error) {
-	if r.nwritten >= r.opts.maxBytes() {
-		return 0, errors.New("Capacity exceeded")
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if r.closed == nil {
+		return 0, errors.New("Closed")
 	}
 	if len(data) == 0 {
 		return 0, nil
 	}
 	n, err := r.w.Write(data)
-	if r.byteCount != nil && n > 0 {
-		r.byteCount <- n
-		r.nwritten += n
+	r.nwritten += n
+	if r.nwritten > r.opts.maxBytes() {
+		r.internalClose()
 	}
 	return n, err
 }
 
 func (r *xhrReceiver) Close() error {
-	return r.w.Close()
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return r.internalClose()
+}
+
+func (r *xhrReceiver) internalClose() error {
+	if r.closed != nil {
+		close(r.closed)
+		r.closed = nil
+		return nil
+	}
+	return errors.New("Closed")
 }
 
 // differentiate between XhrPolling and XhrStreaming
@@ -202,28 +216,21 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		}
 		s.sessionLock.Unlock()
 		sessionUnlocked = true
-		byteCount := make(chan int)
 		var leavingVoluntarily bool
 		loopDone := make(chan bool)
+		recvDone := make(chan bool)
 		go func() {
 			defer close(loopDone)
-			nwritten := 0
-			for {
-				select {
-				case nb := <-byteCount:
-					nwritten += nb
-					if nwritten >= opts.maxBytes() {
-						leavingVoluntarily = true
-						w.Close()
-						return
-					}
-				case <-done:
-					w.Close()
-					return
-				}
+			defer w.Close()
+			select {
+			case <-recvDone:
+				leavingVoluntarily = true
+				return
+			case <-done:
+				return
 			}
 		}()
-		err := trans.setReceiver(&xhrReceiver{trans, w, byteCount, 0, opts})
+		err := trans.setReceiver(&xhrReceiver{t: trans, w: w, opts: opts, closed: recvDone})
 		if err != nil {
 			return
 		}

@@ -290,7 +290,8 @@ func TestXhrHeartbeat(t *testing.T) {
 func TestXhrTimeout(t *testing.T) {
 	server, baseUrl := startEchoServer()
 	defer server.Close()
-	server.Router.DisconnectDelay = time.Millisecond * 3
+	server.Router.DisconnectDelay = time.Millisecond * 5
+	start := time.Now()
 
 	// Hack up server/session
 	turl := baseUrl + "/123/456"
@@ -323,13 +324,15 @@ func TestXhrTimeout(t *testing.T) {
 		}
 		sendXhr(c, turl, "abc")
 		s, err = bodyString(r)
+		tm := time.Now()
 		if err != nil || s != xhrMessage("abc") {
-			t.Errorf("xhr message %d was %s with error %v", i, s, err)
+			t.Errorf("xhr message %d was %s with error %v after %v", i, s, err, tm.Sub(start))
 		}
+		start = tm
 	}
 
 	// Now sleep long enough to time out
-	time.Sleep(time.Microsecond * 3500)
+	time.Sleep(time.Microsecond * 5100)
 	r, err = c.Post(surl, "", nil)
 	sendXhr(c, turl, "abc")
 	s, err = readString(r.Body)
