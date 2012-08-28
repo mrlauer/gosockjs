@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -176,6 +177,10 @@ func infoFunc(r *Router) func(w http.ResponseWriter, req *http.Request) {
 func greetingHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-type", "text/plain; charset=UTF-8")
 	body := "Welcome to SockJS!\n"
+	if req.ProtoMajor == 1 && req.ProtoMinor == 0 {
+		w.Header().Set("Connection", "close")
+	}
+	w.Header().Set("Content-length", fmt.Sprintf("%d", len(body)))
 	w.Write([]byte(body))
 }
 
