@@ -7,8 +7,9 @@ The protocol is partly specified in a [test suite](https://github.com/sockjs/soc
 Supported protocols:
 * websocket
 * xhr-xtreaming
-* xhr-polling
 * iframe-eventsource
+* iframe-htmlfile
+* xhr-polling
 * iframe-xhr-polling
 * jsonp-polling
 

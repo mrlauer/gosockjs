@@ -232,6 +232,9 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	// Eventsource
 	ss.HandleFunc("/eventsource", r.wrapHandler(eventsourceHandler)).Methods("GET", "OPTIONS")
 
+	// HTML
+	ss.HandleFunc("/htmlfile", r.wrapHandler(htmlfileHandler)).Methods("GET", "OPTIONS")
+
 	return r, nil
 }
 

@@ -32,10 +32,5 @@ func (o eventsourceOptions) streaming() bool {
 }
 
 func eventsourceHandler(r *Router, w http.ResponseWriter, req *http.Request) {
-	err := req.ParseForm()
-	if err != nil {
-		http.Error(w, "Bad query", http.StatusInternalServerError)
-		return
-	}
 	xhrHandlerBase(eventsourceOptions{}, r, w, req)
 }

@@ -36,6 +36,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			"xhr-streaming",
 			"iframe-xhr-polling",
 			"iframe-eventsource",
+			"iframe-htmlfile",
 			"jsonp-polling",
 		},
 	}
