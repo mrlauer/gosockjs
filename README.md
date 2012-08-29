@@ -32,4 +32,4 @@ Tests that are currently failing from the protocol test suite:
 * Http10.test_streaming.
 * WebsocketHybi10.test_firefox_602_connection_header. That test uses websocket version 7, not supported by go.net/websocket.
 
-I have no plans to fix any of these, as I see little point in supported http1.0 and antique versions of Firefox.
+I have no plans to fix any of these, as I see little point in supporting http1.0 and antique versions of Firefox.
