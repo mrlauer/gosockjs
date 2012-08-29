@@ -29,19 +29,19 @@ func xhrProlog(w http.ResponseWriter, req *http.Request) bool {
 type xhrTransport struct {
 	receiver *xhrReceiver
 	s        *session
+	opts     xhrOptions
 	lock     sync.RWMutex
 }
 
 func (t *xhrTransport) writeFrame(w io.Writer, frame []byte) error {
-	_, err := w.Write(append(frame, '\n'))
-	return err
+	return t.opts.writeFrame(w, frame)
 }
 
 func (t *xhrTransport) sendFrame(frame []byte) error {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 	if t.receiver != nil {
-		return t.writeFrame(t.receiver, frame)
+		return t.receiver.opts.writeFrame(t.receiver, frame)
 	}
 	return errors.New("No receiver")
 }
@@ -120,12 +120,21 @@ func (r *xhrReceiver) internalClose() error {
 // differentiate between XhrPolling and XhrStreaming
 type xhrOptions interface {
 	maxBytes() int
+	writeFrame(w io.Writer, frame []byte) error
 	writePrelude(w io.Writer) error
 	streaming() bool
 }
 
+type xhrBaseOptions struct {
+}
+
+func (o xhrBaseOptions) writeFrame(w io.Writer, frame []byte) error {
+	_, err := w.Write(append(frame, '\n'))
+	return err
+}
+
 type xhrPollingOptions struct {
-	r *Router
+	xhrBaseOptions
 }
 
 func (o xhrPollingOptions) maxBytes() int {
@@ -141,7 +150,7 @@ func (o xhrPollingOptions) streaming() bool {
 }
 
 type xhrStreamingOptions struct {
-	r *Router
+	xhrBaseOptions
 }
 
 func (o xhrStreamingOptions) maxBytes() int {
@@ -224,6 +233,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 			}
 		} else {
 			trans = new(xhrTransport)
+			trans.opts = opts
 			s.trans = trans
 			trans.s = s
 			trans.writeFrame(w, openFrame())
@@ -301,9 +311,9 @@ func xhrSendHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 }
 
 func xhrHandler(r *Router, w http.ResponseWriter, req *http.Request) {
-	xhrHandlerBase(xhrPollingOptions{r}, r, w, req)
+	xhrHandlerBase(xhrPollingOptions{}, r, w, req)
 }
 
 func xhrStreamingHandler(r *Router, w http.ResponseWriter, req *http.Request) {
-	xhrHandlerBase(xhrStreamingOptions{r}, r, w, req)
+	xhrHandlerBase(xhrStreamingOptions{}, r, w, req)
 }

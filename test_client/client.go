@@ -35,6 +35,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			"xhr-polling",
 			"xhr-streaming",
 			"iframe-xhr-polling",
+			"jsonp-polling",
 		},
 	}
 	t := template.Must(template.ParseFiles(path.Join(TemplateDir, "client.html")))

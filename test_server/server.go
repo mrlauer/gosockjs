@@ -61,5 +61,5 @@ func main() {
 	cne.CookieNeeded = true
 	gosockjs.Install("/close", closeSock)
 	fmt.Println("Listening on port 8081")
-	http.ListenAndServe(":8081", new(NoRedirectServer))
+	http.ListenAndServe("127.0.0.1:8081", new(NoRedirectServer))
 }

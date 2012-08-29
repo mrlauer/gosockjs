@@ -225,6 +225,10 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	ss.HandleFunc("/xhr_streaming", r.wrapHandler(xhrStreamingHandler)).Methods("POST", "OPTIONS")
 	ss.HandleFunc("/xhr_send", r.wrapHandler(xhrSendHandler)).Methods("POST", "OPTIONS")
 
+	// JSONP
+	ss.HandleFunc("/jsonp", r.wrapHandler(jsonpHandler)).Methods("GET", "OPTIONS")
+	ss.HandleFunc("/jsonp_send", r.wrapHandler(jsonpSendHandler)).Methods("POST", "OPTIONS")
+
 	return r, nil
 }
 
