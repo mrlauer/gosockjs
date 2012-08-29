@@ -229,6 +229,9 @@ func NewRouter(baseUrl string, h Handler) (*Router, error) {
 	ss.HandleFunc("/jsonp", r.wrapHandler(jsonpHandler)).Methods("GET", "OPTIONS")
 	ss.HandleFunc("/jsonp_send", r.wrapHandler(jsonpSendHandler)).Methods("POST", "OPTIONS")
 
+	// Eventsource
+	ss.HandleFunc("/eventsource", r.wrapHandler(eventsourceHandler)).Methods("GET", "OPTIONS")
+
 	return r, nil
 }
 

@@ -123,6 +123,7 @@ type xhrOptions interface {
 	writeFrame(w io.Writer, frame []byte) error
 	writePrelude(w io.Writer) error
 	streaming() bool
+	contentType() string
 }
 
 type xhrBaseOptions struct {
@@ -131,6 +132,10 @@ type xhrBaseOptions struct {
 func (o xhrBaseOptions) writeFrame(w io.Writer, frame []byte) error {
 	_, err := w.Write(append(frame, '\n'))
 	return err
+}
+
+func (o xhrBaseOptions) contentType() string {
+	return "application/javascript; charset=UTF-8"
 }
 
 type xhrPollingOptions struct {
@@ -196,7 +201,7 @@ func xhrHandlerBase(opts xhrOptions, r *Router, w http.ResponseWriter, req *http
 		return
 	}
 	xhrJsessionid(r, w, req)
-	w.Header().Set("Content-type", "application/javascript; charset=UTF-8")
+	w.Header().Set("Content-type", opts.contentType())
 	// For CORS, if the server sent Access-Control-Request-Headers, we
 	// echo it back.
 	acrh := req.Header.Get("Access-Control-Request-Headers")

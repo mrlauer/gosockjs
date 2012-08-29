@@ -25,6 +25,10 @@ func (o jsonpOptions) writeFrame(w io.Writer, frame []byte) error {
 	return err
 }
 
+func (o jsonpOptions) contentType() string {
+	return "application/javascript; charset=UTF-8"
+}
+
 func (o jsonpOptions) maxBytes() int {
 	return 1
 }
