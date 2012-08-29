@@ -152,7 +152,11 @@ func websocketHandler(r *Router, w http.ResponseWriter, req *http.Request) {
 		http.Error(w, `Can "Upgrade" only to "WebSocket".`, http.StatusBadRequest)
 		return
 	}
-	if strings.ToLower(req.Header.Get("Connection")) != "upgrade" {
+	conn := strings.ToLower(req.Header.Get("Connection"))
+	// Silly firefox...
+	if conn == "keep-alive, upgrade" {
+		req.Header.Set("Connection", "Upgrade")
+	} else if conn != "upgrade" {
 		http.Error(w, `"Connection" must be "Upgrade".`, http.StatusBadRequest)
 		return
 	}
