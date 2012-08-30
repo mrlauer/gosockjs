@@ -1,0 +1,15 @@
+#output {
+    height:40em;
+    overflow:auto;
+    border-width:thin;
+    border-style:solid;
+    margin-top:0.5em;
+    padding-top:0.5em;
+    padding-left:0.5em;
+    line-height:1.3em;
+}
+
+#output p {
+    margin:0;
+    padding:0;
+}

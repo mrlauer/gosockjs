@@ -28,6 +28,10 @@ $(function() {
         $("#output").append('<p>' + msg + '</p>')
     };
 
+    var clear = function() {
+        $('#output').html('');
+    }
+
     var sock;
     var newSock = function() {
         var whitelist = [];
@@ -72,5 +76,6 @@ $(function() {
         }
         newSock();
     });
+    $('#clear').click(clear);
 
 });

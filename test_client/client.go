@@ -34,6 +34,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			"websocket",
 			"xhr-polling",
 			"xhr-streaming",
+			"xdr-polling",
+			"xdr-streaming",
 			"iframe-xhr-polling",
 			"iframe-eventsource",
 			"iframe-htmlfile",
