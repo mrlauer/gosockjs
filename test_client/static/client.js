@@ -36,6 +36,10 @@ $(function() {
 
     var tryAll = function() {
         var i, p;
+        $('label span.result').addClass("indeterminate")
+            .removeClass('success')
+            .removeClass('failure')
+            .text('??');
         for(i in protocols) {
             p = protocols[i];
             (function(i, p) {
@@ -57,7 +61,7 @@ $(function() {
                     }
                 };
                 sock.onclose = function(e) {
-                    var result = $("#result-" + p + " span");
+                    var result = $("label[for=enable-" + p + "] span");
                     if(success === undefined) {
                         success = false;
                     }
@@ -121,5 +125,6 @@ $(function() {
         newSock();
     });
     $('#clear').click(clear);
+    $('#retest').click(tryAll);
 
 });

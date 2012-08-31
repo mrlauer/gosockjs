@@ -17,20 +17,19 @@
             <input type="Button" id="send" value="Push Me"></input>
             <input type="Button" id="close" value="Close"></input>
             <input type="Button" id="restart" value="Restart"></input>
+            <input type="Button" id="retest" value="Test"></input>
             <input type="Button" id="clear" value="Clear"></input>
         </div>
         <div id="Protocols">
             {{ range .Protocols }}
             <div>
                 <input type="checkbox" id="enable-{{ . }}"></input>
-                <label for="enable-{{ . }}">{{ . }}</label>
+                <label for="enable-{{ . }}">{{ . }} <span class="result"/></label>
             </div>
             {{ end }}
         </div>
+        <div id="protocol-test"></div>
         <div id="output">
-            {{ range .Protocols }}
-            <p id="result-{{ . }}">{{ . }} <span class="indeterminate"> ?? </span></p>
-            {{ end }}
         </div>
     </body>
 </html>
