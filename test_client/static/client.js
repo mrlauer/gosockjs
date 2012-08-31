@@ -1,3 +1,5 @@
+/*global $, protocols, SockJS*/
+
 $(function() {
     var enabledProtocols = {
         'xhr-streaming' : true, 'xhr-polling' : true
@@ -5,13 +7,13 @@ $(function() {
 
     var protocolCheck = function(p) {
         return $("#enable-" + p);
-    }
+    };
 
-    var i, p;
+    var i;
     for(i in protocols) {
         (function(p) {
             var checkbox = protocolCheck(p);
-            if(p in enabledProtocols) {
+            if(enabledProtocols[p]) {
                 checkbox.attr('checked', true);
             }
             checkbox.click(function() {
@@ -25,16 +27,15 @@ $(function() {
     }
 
     var output = function(msg) {
-        $("#output").append('<p>' + msg + '</p>')
+        $("#output").append('<p>' + msg + '</p>');
     };
 
     var clear = function() {
         $('#output').html('');
-    }
+    };
 
     var tryAll = function() {
-        var i, p, whitelist;
-        var sock;
+        var i, p;
         for(i in protocols) {
             p = protocols[i];
             (function(i, p) {
@@ -52,7 +53,7 @@ $(function() {
                 sock.onmessage = function(e) {
                     if(e.data === text) {
                         textReceived = true;
-                        sock.close()
+                        sock.close();
                     }
                 };
                 sock.onclose = function(e) {
@@ -94,8 +95,8 @@ $(function() {
             sock.send("Second send");
         };
         sock.onclose = function(e) {
-            output("Byebye! " +  e.code + ', ' + e.reason)
-        }
+            output("Byebye! " +  e.code + ', ' + e.reason);
+        };
         sock.onmessage = function(e) {
             output(e.data);
         };
