@@ -32,6 +32,49 @@ $(function() {
         $('#output').html('');
     }
 
+    var tryAll = function() {
+        var i, p, whitelist;
+        var sock;
+        for(i in protocols) {
+            p = protocols[i];
+            (function(i, p) {
+                var whitelist = [p];
+                var success = undefined;
+                var text = 'Some text';
+                var textReceived = false;
+                var sock = new SockJS('/echo', null, {
+                    protocols_whitelist: whitelist
+                });
+                sock.onopen = function() {
+                    success = true;
+                    sock.send(text);
+                };
+                sock.onmessage = function(e) {
+                    if(e.data === text) {
+                        textReceived = true;
+                        sock.close()
+                    }
+                };
+                sock.onclose = function(e) {
+                    var result = $("#result-" + p + " span");
+                    if(success === undefined) {
+                        success = false;
+                    }
+
+                    result.removeClass("indeterminate");
+                    if(success && textReceived) {
+                        result.text("succeeded").addClass("success");
+                    } else if(success) {
+                        result.text("opened, wrong text").addClass("failure");
+                    } else {
+                        result.text("failed").addClass("failure");
+                    }
+                };
+            })(i, protocols[i]);
+        }
+    };
+    tryAll();
+
     var sock;
     var newSock = function() {
         var whitelist = [];

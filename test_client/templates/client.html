@@ -28,6 +28,9 @@
             {{ end }}
         </div>
         <div id="output">
+            {{ range .Protocols }}
+            <p id="result-{{ . }}">{{ . }} <span class="indeterminate"> ?? </span></p>
+            {{ end }}
         </div>
     </body>
 </html>

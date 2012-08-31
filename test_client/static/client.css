@@ -13,3 +13,15 @@
     margin:0;
     padding:0;
 }
+
+.success {
+    color: green;
+}
+
+.failure {
+    color: red;
+}
+
+.indeterminate {
+    color: orange;
+}
