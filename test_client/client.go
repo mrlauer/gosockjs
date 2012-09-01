@@ -1,5 +1,5 @@
 /*
-A very simple client for testing gosockjs.
+A very simple client for testing gosockjs. It does a simple check of all the protocols.  
 */
 package main
 

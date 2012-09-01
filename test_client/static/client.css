@@ -9,6 +9,16 @@
     line-height:1.3em;
 }
 
+.test-text {
+    margin-top:0.2em;
+    margin-bottom:0.2em;
+}
+
+label {
+    margin-right:0.5em;
+    margin-top: 3px;
+}
+
 #output p {
     margin:0;
     padding:0;

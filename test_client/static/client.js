@@ -107,8 +107,9 @@ $(function() {
 
     };
     $('#send').click(function() {
+        var text = $('#test-text').val();
         if(sock) {
-            sock.send("Boo!");
+            sock.send(text);
         }
     });
 
